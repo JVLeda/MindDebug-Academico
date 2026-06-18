@@ -43,6 +43,10 @@ public class Materia extends Entidade {
         grupos.add(grupo);
     }
 
+    public void removerGrupo(GrupoEstudo grupo) {
+        grupos.remove(grupo);
+    }
+
     public void adicionarPedidoMonitoria(PedidoMonitoria pedido) {
         pedidosMonitoria.add(pedido);
     }

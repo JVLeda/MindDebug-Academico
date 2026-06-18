@@ -3,7 +3,7 @@ package util;
 public class Validador {
     public String texto(String valor, String campo) {
         if (valor == null || valor.trim().isEmpty()) {
-            throw new RuntimeException(campo + " e obrigatorio.");
+            throw new RuntimeException(campo + " é obrigatorio.");
         }
         return valor.trim();
     }
@@ -11,7 +11,7 @@ public class Validador {
     public String email(String valor) {
         valor = texto(valor, "Email").toLowerCase();
         if (!valor.contains("@") || !valor.contains(".")) {
-            throw new RuntimeException("Email invalido.");
+            throw new RuntimeException("Email inválido.");
         }
         return valor;
     }
@@ -19,7 +19,7 @@ public class Validador {
     public String senha(String valor) {
         valor = texto(valor, "Senha");
         if (valor.length() < 4) {
-            throw new RuntimeException("Senha deve ter pelo menos 4 caracteres.");
+            throw new RuntimeException("Senha deve ter pelo menos 4 caractéres.");
         }
         return valor;
     }
