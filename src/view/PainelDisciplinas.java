@@ -64,6 +64,8 @@ public class PainelDisciplinas extends JPanel {
         JTextField nome = new JTextField(18);
         JComboBox<Professor> professores = new JComboBox<>(janela.getController().listarProfessores().toArray(new Professor[0]));
         JButton confirmar = janela.botao("Confirmar");
+        JButton designarProfessor = janela.botao("Designar professor");
+        JButton removerProfessor = janela.botao("Remover professor");
         JButton cancelar = janela.botao("Cancelar");
         JButton remover = janela.botao("Remover");
 
@@ -72,6 +74,8 @@ public class PainelDisciplinas extends JPanel {
         cadastro.add(new JLabel("Professor:"));
         cadastro.add(professores);
         cadastro.add(confirmar);
+        cadastro.add(designarProfessor);
+        cadastro.add(removerProfessor);
         cadastro.add(cancelar);
         cadastro.add(remover);
 
@@ -80,6 +84,26 @@ public class PainelDisciplinas extends JPanel {
             atualizarMaterias.run();
             nome.setText("");
         }));
+
+        designarProfessor.addActionListener(e -> janela.tentar(() -> {
+            janela.getController().designarProfessorNaMateria(
+                    janela.getUsuarioLogado(),
+                    lista.getSelectedValue(),
+                    (Professor) professores.getSelectedItem()
+            );
+            atualizarMaterias.run();
+            lista.repaint();
+        }));
+
+        removerProfessor.addActionListener(e -> janela.tentar(() -> {
+            janela.getController().removerProfessorDaMateria(
+                    janela.getUsuarioLogado(),
+                    lista.getSelectedValue()
+            );
+            atualizarMaterias.run();
+            lista.repaint();
+        }));
+
         cancelar.addActionListener(e -> nome.setText(""));
         remover.addActionListener(e -> janela.tentar(() -> {
             Periodo periodo = (Periodo) periodos.getSelectedItem();

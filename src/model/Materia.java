@@ -15,8 +15,7 @@ public class Materia extends Entidade {
 
     public Materia(String nome, Professor professor) {
         this.nome = nome;
-        this.professor = professor;
-        adicionarParticipante(professor);
+        setProfessor(professor);
     }
 
     public void adicionarParticipante(Usuario usuario) {
@@ -79,9 +78,21 @@ public class Materia extends Entidade {
         return professor;
     }
 
-    public void setProfessor(Professor professor) {
-        this.professor = professor;
-        adicionarParticipante(professor);
+    public void setProfessor(Professor novoProfessor) {
+        if (professor != null && professor != novoProfessor) {
+            participantes.remove(professor);
+        }
+        professor = novoProfessor;
+        if (novoProfessor != null && !participantes.contains(novoProfessor)) {
+            participantes.add(novoProfessor);
+        }
+    }
+
+    public void removerProfessor() {
+        if (professor != null) {
+            participantes.remove(professor);
+            professor = null;
+        }
     }
 
     public ArrayList<Aula> getAulas() {

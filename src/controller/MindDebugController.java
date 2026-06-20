@@ -37,7 +37,8 @@ public class MindDebugController {
         this.cursoDao = new CursoDao(banco);
         boolean bancoEstavaVazio = usuarioDao.listar().isEmpty();
         criarDadosIniciais();
-        if (bancoEstavaVazio) {
+        boolean gradeAtualizada = garantirGradeEngenhariaComputacao();
+        if (bancoEstavaVazio || gradeAtualizada) {
             bancoDao.salvar(banco);
         }
     }
@@ -174,6 +175,25 @@ public class MindDebugController {
         materia.setId(banco.gerarId());
         periodo.adicionarMateria(materia);
         return materia;
+    }
+
+    public void designarProfessorNaMateria(Usuario usuarioLogado, Materia materia, Professor professor) {
+        exigirNivel(usuarioLogado, 4, "designar professor");
+        if (materia == null) {
+            throw new RuntimeException("Selecione uma disciplina.");
+        }
+        if (professor == null) {
+            throw new RuntimeException("Selecione um professor.");
+        }
+        materia.setProfessor(professor);
+    }
+
+    public void removerProfessorDaMateria(Usuario usuarioLogado, Materia materia) {
+        exigirNivel(usuarioLogado, 4, "remover professor");
+        if (materia == null) {
+            throw new RuntimeException("Selecione uma disciplina.");
+        }
+        materia.removerProfessor();
     }
 
     public Aula criarAula(Usuario usuarioLogado, Materia materia, String titulo, String data) {
@@ -383,9 +403,15 @@ public class MindDebugController {
         if (usuario == null || materia == null) {
             throw new RuntimeException("Dados invalidos.");
         }
-        boolean professorDaMateria = usuario == materia.getProfessor();
         boolean dev = usuario.getNivel() == 4;
-        if (!professorDaMateria && !dev) {
+        boolean professorSemDesignacao = usuario instanceof Professor && materia.getProfessor() == null;
+        boolean professorDaMateria = false;
+
+        if (usuario instanceof Professor && materia.getProfessor() != null) {
+            professorDaMateria = usuario.getId() == materia.getProfessor().getId();
+        }
+
+        if (!professorDaMateria && !professorSemDesignacao && !dev) {
             throw new RuntimeException("Sem permissao para " + acao + ".");
         }
     }
@@ -436,11 +462,11 @@ public class MindDebugController {
         Curso curso = new Curso("Engenharia da Computacao", "EC", "Ciencias Exatas", 3600, "Coordenador 1");
         cursoDao.cadastrar(curso);
 
-        Periodo periodo = new Periodo(1, "Primeiro Periodo");
+        Periodo periodo = new Periodo(1, "Primeiro Modulo");
         periodo.setId(banco.gerarId());
         curso.adicionarPeriodo(periodo);
 
-        Materia materia = new Materia("Programacao Orientada a Objetos", professor);
+        Materia materia = new Materia("Algoritmos e Programacao", professor);
         materia.setId(banco.gerarId());
         materia.adicionarParticipante(monitor);
         periodo.adicionarMateria(materia);
@@ -474,5 +500,92 @@ public class MindDebugController {
         Mensagem mensagemEquipe = materia.getChatEquipe().enviar(professor, "Monitores, acompanhem os feedbacks.");
         mensagemGeral.setId(banco.gerarId());
         mensagemEquipe.setId(banco.gerarId());
+    }
+
+    private boolean garantirGradeEngenhariaComputacao() {
+        boolean alterou = false;
+        Professor professorPadrao = buscarProfessorPadrao();
+        Curso curso = buscarCursoPorNome("Engenharia da Computacao");
+
+        if (curso == null) {
+            curso = new Curso("Engenharia da Computacao", "EC", "Ciencias Exatas", 4170, "Coordenacao Engenharia da Computacao");
+            cursoDao.cadastrar(curso);
+            alterou = true;
+        }
+
+        String[][] grade = {
+                {"1", "Primeiro Modulo", "Matematica Basica", "Algoritmos e Programacao", "Arquitetura de Computadores", "Eletronica Digital", "Metodologia Cientifica", "Introducao a Ciencia do Ambiente"},
+                {"2", "Segundo Modulo", "Calculo I", "Algebra Linear", "Algebra Vetorial e Geometria Analitica", "Programacao Estruturada e Estrutura de Dados I", "Estatistica", "Direito e Legislacao", "Administracao e Empreendedorismo"},
+                {"3", "Terceiro Modulo", "Calculo II", "Equacoes Diferenciais Ordinarias", "Programacao Orientada a Objetos", "Fisica Geral I", "Eletricidade e Magnetismo", "Calculo Numerico"},
+                {"4", "Quarto Modulo", "Matematica Discreta e Teoria dos Grafos", "Probabilidade e Processos Estocasticos", "Banco de Dados", "Engenharia de Software", "Fisica Geral II", "Circuitos Eletricos"},
+                {"5", "Quinto Modulo", "Sinais e Sistemas", "Programacao Para Dispositivos Moveis", "Microcontroladores e Microprocessadores", "Interacao Humano Computador", "Sistemas Operacionais", "Eletronica Analogica"},
+                {"6", "Sexto Modulo", "Sistemas de Controle", "Teoria das Comunicacoes", "Estrutura de Dados II", "Sistemas Embarcados", "Redes de Computadores", "Processamento Digital de Sinais"},
+                {"7", "Setimo Modulo", "Otimizacao de Sistemas", "Linguagens Formais e Automatos", "Comunicacoes Digitais", "Sistemas Distribuidos", "Avaliacao de Desempenho de Sistemas", "Computacao Grafica"},
+                {"8", "Oitavo Modulo", "Optativa I", "Optativa II", "Projeto em Engenharia", "Seguranca de Sistemas Computacionais", "Automacao Industrial", "Inteligencia Artificial"},
+                {"9", "Nono Modulo", "Optativa III", "Optativa IV", "PFC I", "Estagio Supervisionado"},
+                {"10", "Decimo Modulo", "Atividades de Extensao Universitaria", "Atividades Curriculares Complementares", "PFC II"}
+        };
+
+        for (String[] dadosPeriodo : grade) {
+            int numero = Integer.parseInt(dadosPeriodo[0]);
+            String nomePeriodo = dadosPeriodo[1];
+            Periodo periodo = buscarPeriodo(curso, numero);
+
+            if (periodo == null) {
+                periodo = new Periodo(numero, nomePeriodo);
+                periodo.setId(banco.gerarId());
+                curso.adicionarPeriodo(periodo);
+                alterou = true;
+            }
+
+            for (int i = 2; i < dadosPeriodo.length; i++) {
+                String nomeMateria = dadosPeriodo[i];
+                if (buscarMateria(periodo, nomeMateria) == null) {
+                    Materia materia = new Materia(nomeMateria, professorPadrao);
+                    materia.setId(banco.gerarId());
+                    periodo.adicionarMateria(materia);
+                    alterou = true;
+                }
+            }
+        }
+        return alterou;
+    }
+
+    private Professor buscarProfessorPadrao() {
+        ArrayList<Professor> professores = listarProfessores();
+        if (!professores.isEmpty()) {
+            return professores.get(0);
+        }
+
+        Professor professor = new Professor("Professor 1", "prof", "prof@minddebug.edu.br", "1234");
+        usuarioDao.cadastrar(professor);
+        return professor;
+    }
+
+    private Curso buscarCursoPorNome(String nome) {
+        for (Curso curso : cursoDao.listar()) {
+            if (curso.getNome().equalsIgnoreCase(nome)) {
+                return curso;
+            }
+        }
+        return null;
+    }
+
+    private Periodo buscarPeriodo(Curso curso, int numero) {
+        for (Periodo periodo : curso.getPeriodos()) {
+            if (periodo.getNumero() == numero) {
+                return periodo;
+            }
+        }
+        return null;
+    }
+
+    private Materia buscarMateria(Periodo periodo, String nomeMateria) {
+        for (Materia materia : periodo.getMaterias()) {
+            if (materia.getNome().equalsIgnoreCase(nomeMateria)) {
+                return materia;
+            }
+        }
+        return null;
     }
 }
