@@ -37,7 +37,8 @@ public class MindDebugController {
         this.cursoDao = new CursoDao(banco);
         boolean bancoEstavaVazio = usuarioDao.listar().isEmpty();
         criarDadosIniciais();
-        if (bancoEstavaVazio) {
+        boolean gradeAtualizada = garantirGradeEngenhariaComputacao();
+        if (bancoEstavaVazio || gradeAtualizada) {
             bancoDao.salvar(banco);
         }
     }
@@ -176,6 +177,25 @@ public class MindDebugController {
         return materia;
     }
 
+    public void designarProfessorNaMateria(Usuario usuarioLogado, Materia materia, Professor professor) {
+        exigirNivel(usuarioLogado, 4, "designar professor");
+        if (materia == null) {
+            throw new RuntimeException("Selecione uma disciplina.");
+        }
+        if (professor == null) {
+            throw new RuntimeException("Selecione um professor.");
+        }
+        materia.setProfessor(professor);
+    }
+
+    public void removerProfessorDaMateria(Usuario usuarioLogado, Materia materia) {
+        exigirNivel(usuarioLogado, 4, "remover professor");
+        if (materia == null) {
+            throw new RuntimeException("Selecione uma disciplina.");
+        }
+        materia.removerProfessor();
+    }
+
     public Aula criarAula(Usuario usuarioLogado, Materia materia, String titulo, String data) {
         exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "criar aula");
         Aula aula = new Aula(validador.texto(titulo, "Titulo da aula"), data, "");
@@ -234,29 +254,137 @@ public class MindDebugController {
 
     public GrupoEstudo criarGrupoEstudo(Usuario usuarioLogado, Materia materia, String nome, Aula aula, Monitor monitor) {
         exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "criar grupo de estudo");
-        throw funcionalidadeEmConstrucao("Criacao de grupos de estudo");
+        if (aula != null && !materia.getAulas().contains(aula)) {
+            throw new RuntimeException("A aula escolhida nao pertence a esta materia.");
+        }
+        if (monitor != null && !materia.getMonitores().contains(monitor)) {
+            throw new RuntimeException("O monitor escolhido nao esta cadastrado nesta materia.");
+        }
+
+        String nomeValidado = validador.texto(nome, "Nome do grupo");
+        for (GrupoEstudo grupoExistente : materia.getGrupos()) {
+            if (grupoExistente.getNome().equalsIgnoreCase(nomeValidado)) {
+                throw new RuntimeException("Ja existe um grupo com este nome.");
+            }
+        }
+
+        GrupoEstudo grupo = new GrupoEstudo(nomeValidado, aula, monitor);
+        grupo.setId(banco.gerarId());
+        materia.adicionarGrupo(grupo);
+        return grupo;
     }
 
-    public PedidoMonitoria solicitarMonitoria(Usuario usuarioLogado, Materia materia, Aula aula, Monitor monitor, String duvida) {
+    public void adicionarAlunoAoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Estudante estudante) {
+        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "adicionar aluno ao grupo");
+        validarGrupoEEstudante(materia, grupo, estudante);
+        grupo.adicionarEstudante(estudante);
+    }
+
+    public void removerAlunoDoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Estudante estudante) {
+        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "remover aluno do grupo");
+        validarGrupoEEstudante(materia, grupo, estudante);
+        grupo.removerEstudante(estudante);
+    }
+
+    public void adicionarMonitorAoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Monitor monitor) {
+        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "adicionar monitor ao grupo");
+        validarGrupoEMonitor(materia, grupo, monitor);
+        grupo.adicionarMonitor(monitor);
+    }
+
+    public void removerMonitorDoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Monitor monitor) {
+        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "remover monitor do grupo");
+        validarGrupoEMonitor(materia, grupo, monitor);
+        grupo.removerMonitor(monitor);
+    }
+
+    public void removerGrupoEstudo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo) {
+        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "remover grupo de estudo");
+        if (grupo == null || !materia.getGrupos().contains(grupo)) {
+            throw new RuntimeException("Selecione um grupo.");
+        }
+        materia.removerGrupo(grupo);
+    }
+
+    public PedidoMonitoria solicitarMonitoria(Usuario usuarioLogado, Materia materia, Aula aula, Monitor monitor, String duvida, String data, String horario) {
         if (!(usuarioLogado instanceof Estudante)) {
             throw new RuntimeException("Somente aluno solicita monitoria.");
         }
-        throw funcionalidadeEmConstrucao("Solicitacao de monitoria");
+        if (materia == null) {
+            throw new RuntimeException("Materia invalida.");
+        }
+        if (aula == null) {
+            throw new RuntimeException("Selecione uma aula.");
+        }
+        if (monitor == null) {
+            throw new RuntimeException("Selecione um monitor.");
+        }
+        if (!materia.getAulas().contains(aula)) {
+            throw new RuntimeException("A aula escolhida nao pertence a esta materia.");
+        }
+        if (!materia.getMonitores().contains(monitor)) {
+            throw new RuntimeException("O monitor escolhido nao esta cadastrado nesta materia.");
+        }
+
+        PedidoMonitoria pedido = new PedidoMonitoria(
+                (Estudante) usuarioLogado,
+                aula,
+                monitor,
+                validador.texto(duvida, "Duvida"),
+                validador.texto(data, "Data"),
+                validador.texto(horario, "Horario")
+        );
+        pedido.setId(banco.gerarId());
+        materia.adicionarPedidoMonitoria(pedido);
+        return pedido;
     }
 
     public void aceitarMonitoria(Usuario usuarioLogado, PedidoMonitoria pedido, Monitor monitor) {
         exigirNivel(usuarioLogado, 2, "aceitar monitoria");
-        throw funcionalidadeEmConstrucao("Aceite de monitoria");
+        if (pedido == null) {
+            throw new RuntimeException("Selecione um pedido.");
+        }
+        if ("Aceito".equals(pedido.getStatus())) {
+            throw new RuntimeException("Este pedido ja foi aceito.");
+        }
+        if (monitor == null && usuarioLogado instanceof Monitor) {
+            monitor = (Monitor) usuarioLogado;
+        }
+        if (monitor == null) {
+            throw new RuntimeException("Selecione um monitor.");
+        }
+        if (usuarioLogado instanceof Monitor && usuarioLogado != monitor) {
+            throw new RuntimeException("Monitor so pode aceitar pedido para si mesmo.");
+        }
+        pedido.aceitar(monitor);
     }
 
     public void recusarMonitoria(Usuario usuarioLogado, PedidoMonitoria pedido) {
         exigirNivel(usuarioLogado, 2, "recusar monitoria");
-        throw funcionalidadeEmConstrucao("Recusa de monitoria");
+        if (pedido == null) {
+            throw new RuntimeException("Selecione um pedido.");
+        }
+        if (usuarioLogado instanceof Monitor && pedido.getMonitor() != null && usuarioLogado != pedido.getMonitor()) {
+            throw new RuntimeException("Monitor so pode recusar pedidos direcionados a ele.");
+        }
+        pedido.recusar();
     }
 
     public void redefinirSenhaDeUsuario(Usuario usuarioLogado, Usuario usuario, String novaSenha) {
         exigirNivel(usuarioLogado, 4, "redefinir senha");
-        throw funcionalidadeEmConstrucao("Redefinicao de senha pelo Dev");
+        if (usuario == null) {
+            throw new RuntimeException("Selecione um usuario.");
+        }
+        usuario.trocarSenha(validador.senha(novaSenha));
+        usuarioDao.atualizar(usuario);
+    }
+
+    public void alterarMinhaSenha(Usuario usuario, String novaSenha) {
+        if (usuario == null) {
+            throw new RuntimeException("Usuario nao esta logado.");
+        }
+        usuario.trocarSenha(validador.senha(novaSenha));
+        usuarioDao.atualizar(usuario);
     }
 
     private void validarLoginLivre(String login) {
@@ -275,15 +403,47 @@ public class MindDebugController {
         if (usuario == null || materia == null) {
             throw new RuntimeException("Dados invalidos.");
         }
-        boolean professorDaMateria = usuario == materia.getProfessor();
         boolean dev = usuario.getNivel() == 4;
-        if (!professorDaMateria && !dev) {
+        boolean professorSemDesignacao = usuario instanceof Professor && materia.getProfessor() == null;
+        boolean professorDaMateria = false;
+
+        if (usuario instanceof Professor && materia.getProfessor() != null) {
+            professorDaMateria = usuario.getId() == materia.getProfessor().getId();
+        }
+
+        if (!professorDaMateria && !professorSemDesignacao && !dev) {
             throw new RuntimeException("Sem permissao para " + acao + ".");
         }
     }
 
-    private RuntimeException funcionalidadeEmConstrucao(String nome) {
-        return new RuntimeException(nome + " ficou separada para outro membro do grupo implementar.");
+    private void validarGrupoEEstudante(Materia materia, GrupoEstudo grupo, Estudante estudante) {
+        if (grupo == null) {
+            throw new RuntimeException("Selecione um grupo.");
+        }
+        if (estudante == null) {
+            throw new RuntimeException("Selecione um aluno.");
+        }
+        if (!materia.getGrupos().contains(grupo)) {
+            throw new RuntimeException("O grupo nao pertence a esta materia.");
+        }
+        if (!materia.getEstudantes().contains(estudante)) {
+            throw new RuntimeException("O aluno nao esta matriculado nesta materia.");
+        }
+    }
+
+    private void validarGrupoEMonitor(Materia materia, GrupoEstudo grupo, Monitor monitor) {
+        if (grupo == null) {
+            throw new RuntimeException("Selecione um grupo.");
+        }
+        if (monitor == null) {
+            throw new RuntimeException("Selecione um monitor.");
+        }
+        if (!materia.getGrupos().contains(grupo)) {
+            throw new RuntimeException("O grupo nao pertence a esta materia.");
+        }
+        if (!materia.getMonitores().contains(monitor)) {
+            throw new RuntimeException("O monitor nao esta cadastrado nesta materia.");
+        }
     }
 
     private void criarDadosIniciais() {
@@ -302,11 +462,11 @@ public class MindDebugController {
         Curso curso = new Curso("Engenharia da Computacao", "EC", "Ciencias Exatas", 3600, "Coordenador 1");
         cursoDao.cadastrar(curso);
 
-        Periodo periodo = new Periodo(1, "Primeiro Periodo");
+        Periodo periodo = new Periodo(1, "Primeiro Modulo");
         periodo.setId(banco.gerarId());
         curso.adicionarPeriodo(periodo);
 
-        Materia materia = new Materia("Programacao Orientada a Objetos", professor);
+        Materia materia = new Materia("Algoritmos e Programacao", professor);
         materia.setId(banco.gerarId());
         materia.adicionarParticipante(monitor);
         periodo.adicionarMateria(materia);
@@ -340,5 +500,92 @@ public class MindDebugController {
         Mensagem mensagemEquipe = materia.getChatEquipe().enviar(professor, "Monitores, acompanhem os feedbacks.");
         mensagemGeral.setId(banco.gerarId());
         mensagemEquipe.setId(banco.gerarId());
+    }
+
+    private boolean garantirGradeEngenhariaComputacao() {
+        boolean alterou = false;
+        Professor professorPadrao = buscarProfessorPadrao();
+        Curso curso = buscarCursoPorNome("Engenharia da Computacao");
+
+        if (curso == null) {
+            curso = new Curso("Engenharia da Computacao", "EC", "Ciencias Exatas", 4170, "Coordenacao Engenharia da Computacao");
+            cursoDao.cadastrar(curso);
+            alterou = true;
+        }
+
+        String[][] grade = {
+                {"1", "Primeiro Modulo", "Matematica Basica", "Algoritmos e Programacao", "Arquitetura de Computadores", "Eletronica Digital", "Metodologia Cientifica", "Introducao a Ciencia do Ambiente"},
+                {"2", "Segundo Modulo", "Calculo I", "Algebra Linear", "Algebra Vetorial e Geometria Analitica", "Programacao Estruturada e Estrutura de Dados I", "Estatistica", "Direito e Legislacao", "Administracao e Empreendedorismo"},
+                {"3", "Terceiro Modulo", "Calculo II", "Equacoes Diferenciais Ordinarias", "Programacao Orientada a Objetos", "Fisica Geral I", "Eletricidade e Magnetismo", "Calculo Numerico"},
+                {"4", "Quarto Modulo", "Matematica Discreta e Teoria dos Grafos", "Probabilidade e Processos Estocasticos", "Banco de Dados", "Engenharia de Software", "Fisica Geral II", "Circuitos Eletricos"},
+                {"5", "Quinto Modulo", "Sinais e Sistemas", "Programacao Para Dispositivos Moveis", "Microcontroladores e Microprocessadores", "Interacao Humano Computador", "Sistemas Operacionais", "Eletronica Analogica"},
+                {"6", "Sexto Modulo", "Sistemas de Controle", "Teoria das Comunicacoes", "Estrutura de Dados II", "Sistemas Embarcados", "Redes de Computadores", "Processamento Digital de Sinais"},
+                {"7", "Setimo Modulo", "Otimizacao de Sistemas", "Linguagens Formais e Automatos", "Comunicacoes Digitais", "Sistemas Distribuidos", "Avaliacao de Desempenho de Sistemas", "Computacao Grafica"},
+                {"8", "Oitavo Modulo", "Optativa I", "Optativa II", "Projeto em Engenharia", "Seguranca de Sistemas Computacionais", "Automacao Industrial", "Inteligencia Artificial"},
+                {"9", "Nono Modulo", "Optativa III", "Optativa IV", "PFC I", "Estagio Supervisionado"},
+                {"10", "Decimo Modulo", "Atividades de Extensao Universitaria", "Atividades Curriculares Complementares", "PFC II"}
+        };
+
+        for (String[] dadosPeriodo : grade) {
+            int numero = Integer.parseInt(dadosPeriodo[0]);
+            String nomePeriodo = dadosPeriodo[1];
+            Periodo periodo = buscarPeriodo(curso, numero);
+
+            if (periodo == null) {
+                periodo = new Periodo(numero, nomePeriodo);
+                periodo.setId(banco.gerarId());
+                curso.adicionarPeriodo(periodo);
+                alterou = true;
+            }
+
+            for (int i = 2; i < dadosPeriodo.length; i++) {
+                String nomeMateria = dadosPeriodo[i];
+                if (buscarMateria(periodo, nomeMateria) == null) {
+                    Materia materia = new Materia(nomeMateria, professorPadrao);
+                    materia.setId(banco.gerarId());
+                    periodo.adicionarMateria(materia);
+                    alterou = true;
+                }
+            }
+        }
+        return alterou;
+    }
+
+    private Professor buscarProfessorPadrao() {
+        ArrayList<Professor> professores = listarProfessores();
+        if (!professores.isEmpty()) {
+            return professores.get(0);
+        }
+
+        Professor professor = new Professor("Professor 1", "prof", "prof@minddebug.edu.br", "1234");
+        usuarioDao.cadastrar(professor);
+        return professor;
+    }
+
+    private Curso buscarCursoPorNome(String nome) {
+        for (Curso curso : cursoDao.listar()) {
+            if (curso.getNome().equalsIgnoreCase(nome)) {
+                return curso;
+            }
+        }
+        return null;
+    }
+
+    private Periodo buscarPeriodo(Curso curso, int numero) {
+        for (Periodo periodo : curso.getPeriodos()) {
+            if (periodo.getNumero() == numero) {
+                return periodo;
+            }
+        }
+        return null;
+    }
+
+    private Materia buscarMateria(Periodo periodo, String nomeMateria) {
+        for (Materia materia : periodo.getMaterias()) {
+            if (materia.getNome().equalsIgnoreCase(nomeMateria)) {
+                return materia;
+            }
+        }
+        return null;
     }
 }
