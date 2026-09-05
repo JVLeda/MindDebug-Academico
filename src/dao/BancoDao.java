@@ -13,8 +13,13 @@ import model.Mensagem;
 import model.Monitor;
 import model.PedidoMonitoria;
 import model.Periodo;
+import model.PerguntaQuiz;
 import model.Professor;
+import model.Quiz;
+import model.RespostaQuiz;
+import model.TentativaQuiz;
 import model.Usuario;
+import model.AlternativaQuiz;
 import util.Conexao;
 
 import java.sql.Connection;
@@ -22,6 +27,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 public class BancoDao {
     public BancoDados carregar() {
@@ -33,6 +39,12 @@ public class BancoDao {
         HashMap<Integer, Periodo> periodos = carregarPeriodos(cursos);
         HashMap<Integer, Materia> materias = carregarMaterias(periodos, usuarios);
         HashMap<Integer, Aula> aulas = carregarAulas(materias);
+        HashMap<Integer, Quiz> quizzes = carregarQuizzes(aulas);
+        HashMap<Integer, Quiz> quizzesDasPerguntas = new HashMap<>();
+        HashMap<Integer, PerguntaQuiz> perguntas = carregarPerguntasQuiz(quizzes, quizzesDasPerguntas);
+        HashMap<Integer, AlternativaQuiz> alternativas = carregarAlternativasQuiz(perguntas, quizzesDasPerguntas);
+        HashMap<Integer, TentativaQuiz> tentativas = carregarTentativasQuiz(quizzes, usuarios);
+        carregarRespostasQuiz(tentativas, perguntas, alternativas);
         HashMap<Integer, GrupoEstudo> grupos = carregarGrupos(materias, aulas, usuarios);
 
         carregarParticipantes(materias, usuarios);
@@ -56,6 +68,11 @@ public class BancoDao {
         salvarMaterias(banco);
         salvarParticipantes(banco);
         salvarAulas(banco);
+        salvarQuizzes(banco);
+        salvarPerguntasQuiz(banco);
+        salvarAlternativasQuiz(banco);
+        salvarTentativasQuiz(banco);
+        salvarRespostasQuiz(banco);
         salvarFeedbacks(banco);
         salvarMateriais(banco);
         salvarMensagens(banco);
@@ -83,6 +100,11 @@ public class BancoDao {
             comando.executeUpdate("CREATE TABLE IF NOT EXISTS grupos_estudo_alunos (grupo_id INT, estudante_id INT)");
             comando.executeUpdate("CREATE TABLE IF NOT EXISTS grupos_estudo_monitores (grupo_id INT, monitor_id INT)");
             comando.executeUpdate("CREATE TABLE IF NOT EXISTS pedidos_monitoria (id INT PRIMARY KEY, materia_id INT, estudante_id INT, aula_id INT, monitor_id INT, duvida VARCHAR(300), status VARCHAR(30), data_monitoria VARCHAR(20), horario VARCHAR(10))");
+            comando.executeUpdate("CREATE TABLE IF NOT EXISTS quizzes (id INT PRIMARY KEY, aula_id INT NOT NULL UNIQUE, titulo VARCHAR(100) NOT NULL, descricao VARCHAR(300), FOREIGN KEY (aula_id) REFERENCES aulas(id))");
+            comando.executeUpdate("CREATE TABLE IF NOT EXISTS perguntas_quiz (id INT PRIMARY KEY, quiz_id INT NOT NULL, enunciado VARCHAR(500) NOT NULL, dificuldade VARCHAR(20) NOT NULL, FOREIGN KEY (quiz_id) REFERENCES quizzes(id))");
+            comando.executeUpdate("CREATE TABLE IF NOT EXISTS alternativas_quiz (id INT PRIMARY KEY, pergunta_id INT NOT NULL, texto VARCHAR(255) NOT NULL, explicacao VARCHAR(500), correta BOOLEAN NOT NULL, FOREIGN KEY (pergunta_id) REFERENCES perguntas_quiz(id))");
+            comando.executeUpdate("CREATE TABLE IF NOT EXISTS tentativas_quiz (id INT PRIMARY KEY, quiz_id INT NOT NULL, estudante_id INT NOT NULL, data_tentativa VARCHAR(30), acertos INT NOT NULL, total_perguntas INT NOT NULL, FOREIGN KEY (quiz_id) REFERENCES quizzes(id), FOREIGN KEY (estudante_id) REFERENCES usuarios(id))");
+            comando.executeUpdate("CREATE TABLE IF NOT EXISTS respostas_quiz (id INT PRIMARY KEY, tentativa_id INT NOT NULL, pergunta_id INT NOT NULL, alternativa_id INT NOT NULL, acertou BOOLEAN NOT NULL, FOREIGN KEY (tentativa_id) REFERENCES tentativas_quiz(id), FOREIGN KEY (pergunta_id) REFERENCES perguntas_quiz(id), FOREIGN KEY (alternativa_id) REFERENCES alternativas_quiz(id))");
 
             comando.close();
             conexao.close();
@@ -96,6 +118,11 @@ public class BancoDao {
             Connection conexao = Conexao.getConnection();
             Statement comando = conexao.createStatement();
 
+            comando.executeUpdate("DELETE FROM respostas_quiz");
+            comando.executeUpdate("DELETE FROM tentativas_quiz");
+            comando.executeUpdate("DELETE FROM alternativas_quiz");
+            comando.executeUpdate("DELETE FROM perguntas_quiz");
+            comando.executeUpdate("DELETE FROM quizzes");
             comando.executeUpdate("DELETE FROM grupos_estudo_alunos");
             comando.executeUpdate("DELETE FROM grupos_estudo_monitores");
             comando.executeUpdate("DELETE FROM pedidos_monitoria");
@@ -299,6 +326,173 @@ public class BancoDao {
         }
 
         return mapa;
+    }
+
+    private HashMap<Integer, Quiz> carregarQuizzes(HashMap<Integer, Aula> aulas) {
+        HashMap<Integer, Quiz> mapa = new LinkedHashMap<>();
+
+        try {
+            Connection conexao = Conexao.getConnection();
+            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM quizzes ORDER BY id");
+            ResultSet resultado = comando.executeQuery();
+
+            while (resultado.next()) {
+                Aula aula = aulas.get(resultado.getInt("aula_id"));
+                if (aula != null) {
+                    Quiz quiz = new Quiz(resultado.getString("titulo"), resultado.getString("descricao"));
+                    quiz.setId(resultado.getInt("id"));
+                    quiz.setAula(aula);
+                    aula.setQuiz(quiz);
+                    mapa.put(quiz.getId(), quiz);
+                }
+            }
+
+            resultado.close();
+            comando.close();
+            conexao.close();
+        } catch (Exception erro) {
+            throw new RuntimeException("Erro ao carregar quizzes: " + erro.getMessage());
+        }
+
+        return mapa;
+    }
+
+    private HashMap<Integer, PerguntaQuiz> carregarPerguntasQuiz(HashMap<Integer, Quiz> quizzes,
+            HashMap<Integer, Quiz> quizzesDasPerguntas) {
+        HashMap<Integer, PerguntaQuiz> mapa = new LinkedHashMap<>();
+
+        try {
+            Connection conexao = Conexao.getConnection();
+            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM perguntas_quiz ORDER BY id");
+            ResultSet resultado = comando.executeQuery();
+
+            while (resultado.next()) {
+                Quiz quiz = quizzes.get(resultado.getInt("quiz_id"));
+                if (quiz != null) {
+                    PerguntaQuiz pergunta = new PerguntaQuiz(
+                            resultado.getString("enunciado"),
+                            resultado.getString("dificuldade")
+                    );
+                    pergunta.setId(resultado.getInt("id"));
+                    mapa.put(pergunta.getId(), pergunta);
+                    quizzesDasPerguntas.put(pergunta.getId(), quiz);
+                }
+            }
+
+            resultado.close();
+            comando.close();
+            conexao.close();
+        } catch (Exception erro) {
+            throw new RuntimeException("Erro ao carregar perguntas do quiz: " + erro.getMessage());
+        }
+
+        return mapa;
+    }
+
+    private HashMap<Integer, AlternativaQuiz> carregarAlternativasQuiz(
+            HashMap<Integer, PerguntaQuiz> perguntas, HashMap<Integer, Quiz> quizzesDasPerguntas) {
+        HashMap<Integer, AlternativaQuiz> mapa = new LinkedHashMap<>();
+
+        try {
+            Connection conexao = Conexao.getConnection();
+            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM alternativas_quiz ORDER BY id");
+            ResultSet resultado = comando.executeQuery();
+
+            while (resultado.next()) {
+                PerguntaQuiz pergunta = perguntas.get(resultado.getInt("pergunta_id"));
+                if (pergunta != null) {
+                    AlternativaQuiz alternativa = new AlternativaQuiz(
+                            resultado.getString("texto"),
+                            resultado.getString("explicacao"),
+                            resultado.getBoolean("correta")
+                    );
+                    alternativa.setId(resultado.getInt("id"));
+                    pergunta.adicionarAlternativa(alternativa);
+                    mapa.put(alternativa.getId(), alternativa);
+                }
+            }
+
+            resultado.close();
+            comando.close();
+            conexao.close();
+
+            for (Integer perguntaId : perguntas.keySet()) {
+                Quiz quiz = quizzesDasPerguntas.get(perguntaId);
+                if (quiz != null) {
+                    quiz.adicionarPergunta(perguntas.get(perguntaId));
+                }
+            }
+        } catch (Exception erro) {
+            throw new RuntimeException("Erro ao carregar alternativas do quiz: " + erro.getMessage());
+        }
+
+        return mapa;
+    }
+
+    private HashMap<Integer, TentativaQuiz> carregarTentativasQuiz(HashMap<Integer, Quiz> quizzes,
+            HashMap<Integer, Usuario> usuarios) {
+        HashMap<Integer, TentativaQuiz> mapa = new LinkedHashMap<>();
+
+        try {
+            Connection conexao = Conexao.getConnection();
+            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM tentativas_quiz ORDER BY id");
+            ResultSet resultado = comando.executeQuery();
+
+            while (resultado.next()) {
+                Quiz quiz = quizzes.get(resultado.getInt("quiz_id"));
+                Usuario usuario = usuarios.get(resultado.getInt("estudante_id"));
+                if (quiz != null && usuario instanceof Estudante) {
+                    TentativaQuiz tentativa = TentativaQuiz.restaurar(
+                            (Estudante) usuario,
+                            quiz,
+                            resultado.getInt("acertos"),
+                            resultado.getInt("total_perguntas")
+                    );
+                    tentativa.setId(resultado.getInt("id"));
+                    tentativa.setDataTentativa(resultado.getString("data_tentativa"));
+                    quiz.adicionarTentativa(tentativa);
+                    mapa.put(tentativa.getId(), tentativa);
+                }
+            }
+
+            resultado.close();
+            comando.close();
+            conexao.close();
+        } catch (Exception erro) {
+            throw new RuntimeException("Erro ao carregar tentativas do quiz: " + erro.getMessage());
+        }
+
+        return mapa;
+    }
+
+    private void carregarRespostasQuiz(HashMap<Integer, TentativaQuiz> tentativas,
+            HashMap<Integer, PerguntaQuiz> perguntas, HashMap<Integer, AlternativaQuiz> alternativas) {
+        try {
+            Connection conexao = Conexao.getConnection();
+            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM respostas_quiz ORDER BY id");
+            ResultSet resultado = comando.executeQuery();
+
+            while (resultado.next()) {
+                TentativaQuiz tentativa = tentativas.get(resultado.getInt("tentativa_id"));
+                PerguntaQuiz pergunta = perguntas.get(resultado.getInt("pergunta_id"));
+                AlternativaQuiz alternativa = alternativas.get(resultado.getInt("alternativa_id"));
+                if (tentativa != null && pergunta != null && alternativa != null) {
+                    RespostaQuiz resposta = RespostaQuiz.restaurar(
+                            pergunta,
+                            alternativa,
+                            resultado.getBoolean("acertou")
+                    );
+                    resposta.setId(resultado.getInt("id"));
+                    tentativa.adicionarResposta(resposta);
+                }
+            }
+
+            resultado.close();
+            comando.close();
+            conexao.close();
+        } catch (Exception erro) {
+            throw new RuntimeException("Erro ao carregar respostas do quiz: " + erro.getMessage());
+        }
     }
 
     private HashMap<Integer, GrupoEstudo> carregarGrupos(HashMap<Integer, Materia> materias, HashMap<Integer, Aula> aulas, HashMap<Integer, Usuario> usuarios) {
@@ -737,6 +931,177 @@ public class BancoDao {
         }
     }
 
+    private void salvarQuizzes(BancoDados banco) {
+        try {
+            Connection conexao = Conexao.getConnection();
+            PreparedStatement comando = conexao.prepareStatement(
+                    "INSERT INTO quizzes (id, aula_id, titulo, descricao) VALUES (?, ?, ?, ?)"
+            );
+
+            for (Curso curso : banco.getCursos()) {
+                for (Periodo periodo : curso.getPeriodos()) {
+                    for (Materia materia : periodo.getMaterias()) {
+                        for (Aula aula : materia.getAulas()) {
+                            Quiz quiz = aula.getQuiz();
+                            if (quiz != null) {
+                                comando.setInt(1, quiz.getId());
+                                comando.setInt(2, aula.getId());
+                                comando.setString(3, quiz.getTitulo());
+                                comando.setString(4, quiz.getDescricao());
+                                comando.executeUpdate();
+                            }
+                        }
+                    }
+                }
+            }
+
+            comando.close();
+            conexao.close();
+        } catch (Exception erro) {
+            throw new RuntimeException("Erro ao salvar quizzes: " + erro.getMessage());
+        }
+    }
+
+    private void salvarPerguntasQuiz(BancoDados banco) {
+        try {
+            Connection conexao = Conexao.getConnection();
+            PreparedStatement comando = conexao.prepareStatement(
+                    "INSERT INTO perguntas_quiz (id, quiz_id, enunciado, dificuldade) VALUES (?, ?, ?, ?)"
+            );
+
+            for (Curso curso : banco.getCursos()) {
+                for (Periodo periodo : curso.getPeriodos()) {
+                    for (Materia materia : periodo.getMaterias()) {
+                        for (Aula aula : materia.getAulas()) {
+                            Quiz quiz = aula.getQuiz();
+                            if (quiz != null) {
+                                for (PerguntaQuiz pergunta : quiz.getPerguntas()) {
+                                    comando.setInt(1, pergunta.getId());
+                                    comando.setInt(2, quiz.getId());
+                                    comando.setString(3, pergunta.getEnunciado());
+                                    comando.setString(4, pergunta.getDificuldade());
+                                    comando.executeUpdate();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            comando.close();
+            conexao.close();
+        } catch (Exception erro) {
+            throw new RuntimeException("Erro ao salvar perguntas do quiz: " + erro.getMessage());
+        }
+    }
+
+    private void salvarAlternativasQuiz(BancoDados banco) {
+        try {
+            Connection conexao = Conexao.getConnection();
+            PreparedStatement comando = conexao.prepareStatement(
+                    "INSERT INTO alternativas_quiz (id, pergunta_id, texto, explicacao, correta) VALUES (?, ?, ?, ?, ?)"
+            );
+
+            for (Curso curso : banco.getCursos()) {
+                for (Periodo periodo : curso.getPeriodos()) {
+                    for (Materia materia : periodo.getMaterias()) {
+                        for (Aula aula : materia.getAulas()) {
+                            Quiz quiz = aula.getQuiz();
+                            if (quiz != null) {
+                                for (PerguntaQuiz pergunta : quiz.getPerguntas()) {
+                                    for (AlternativaQuiz alternativa : pergunta.getAlternativas()) {
+                                        comando.setInt(1, alternativa.getId());
+                                        comando.setInt(2, pergunta.getId());
+                                        comando.setString(3, alternativa.getTexto());
+                                        comando.setString(4, alternativa.getExplicacao());
+                                        comando.setBoolean(5, alternativa.isCorreta());
+                                        comando.executeUpdate();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            comando.close();
+            conexao.close();
+        } catch (Exception erro) {
+            throw new RuntimeException("Erro ao salvar alternativas do quiz: " + erro.getMessage());
+        }
+    }
+
+    private void salvarTentativasQuiz(BancoDados banco) {
+        try {
+            Connection conexao = Conexao.getConnection();
+            PreparedStatement comando = conexao.prepareStatement(
+                    "INSERT INTO tentativas_quiz (id, quiz_id, estudante_id, data_tentativa, acertos, total_perguntas) VALUES (?, ?, ?, ?, ?, ?)"
+            );
+
+            for (Curso curso : banco.getCursos()) {
+                for (Periodo periodo : curso.getPeriodos()) {
+                    for (Materia materia : periodo.getMaterias()) {
+                        for (Aula aula : materia.getAulas()) {
+                            Quiz quiz = aula.getQuiz();
+                            if (quiz != null) {
+                                for (TentativaQuiz tentativa : quiz.getTentativas()) {
+                                    comando.setInt(1, tentativa.getId());
+                                    comando.setInt(2, quiz.getId());
+                                    comando.setInt(3, tentativa.getEstudante().getId());
+                                    comando.setString(4, tentativa.getDataTentativa());
+                                    comando.setInt(5, tentativa.getAcertos());
+                                    comando.setInt(6, tentativa.getTotalPerguntas());
+                                    comando.executeUpdate();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            comando.close();
+            conexao.close();
+        } catch (Exception erro) {
+            throw new RuntimeException("Erro ao salvar tentativas do quiz: " + erro.getMessage());
+        }
+    }
+
+    private void salvarRespostasQuiz(BancoDados banco) {
+        try {
+            Connection conexao = Conexao.getConnection();
+            PreparedStatement comando = conexao.prepareStatement(
+                    "INSERT INTO respostas_quiz (id, tentativa_id, pergunta_id, alternativa_id, acertou) VALUES (?, ?, ?, ?, ?)"
+            );
+
+            for (Curso curso : banco.getCursos()) {
+                for (Periodo periodo : curso.getPeriodos()) {
+                    for (Materia materia : periodo.getMaterias()) {
+                        for (Aula aula : materia.getAulas()) {
+                            Quiz quiz = aula.getQuiz();
+                            if (quiz != null) {
+                                for (TentativaQuiz tentativa : quiz.getTentativas()) {
+                                    for (RespostaQuiz resposta : tentativa.getRespostas()) {
+                                        comando.setInt(1, resposta.getId());
+                                        comando.setInt(2, tentativa.getId());
+                                        comando.setInt(3, resposta.getPergunta().getId());
+                                        comando.setInt(4, resposta.getAlternativa().getId());
+                                        comando.setBoolean(5, resposta.isAcertou());
+                                        comando.executeUpdate();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            comando.close();
+            conexao.close();
+        } catch (Exception erro) {
+            throw new RuntimeException("Erro ao salvar respostas do quiz: " + erro.getMessage());
+        }
+    }
+
     private void salvarFeedbacks(BancoDados banco) {
         try {
             Connection conexao = Conexao.getConnection();
@@ -1002,6 +1367,37 @@ public class BancoDao {
                     for (Aula aula : materia.getAulas()) {
                         if (aula.getId() > maiorId) {
                             maiorId = aula.getId();
+                        }
+
+                        Quiz quiz = aula.getQuiz();
+                        if (quiz != null) {
+                            if (quiz.getId() > maiorId) {
+                                maiorId = quiz.getId();
+                            }
+
+                            for (PerguntaQuiz pergunta : quiz.getPerguntas()) {
+                                if (pergunta.getId() > maiorId) {
+                                    maiorId = pergunta.getId();
+                                }
+
+                                for (AlternativaQuiz alternativa : pergunta.getAlternativas()) {
+                                    if (alternativa.getId() > maiorId) {
+                                        maiorId = alternativa.getId();
+                                    }
+                                }
+                            }
+
+                            for (TentativaQuiz tentativa : quiz.getTentativas()) {
+                                if (tentativa.getId() > maiorId) {
+                                    maiorId = tentativa.getId();
+                                }
+
+                                for (RespostaQuiz resposta : tentativa.getRespostas()) {
+                                    if (resposta.getId() > maiorId) {
+                                        maiorId = resposta.getId();
+                                    }
+                                }
+                            }
                         }
                     }
 

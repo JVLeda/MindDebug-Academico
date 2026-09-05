@@ -13,7 +13,7 @@ public class PainelResumoMetricas extends JPanel {
     public PainelResumoMetricas(ArrayList<Aula> aulas, int totalAlunos) {
         this.aulas = aulas;
         this.totalAlunos = totalAlunos;
-        setLayout(new GridLayout(1, 4, 10, 10));
+        setLayout(new GridLayout(1, 5, 10, 10));
         montarTela();
     }
 
@@ -22,6 +22,7 @@ public class PainelResumoMetricas extends JPanel {
         add(cartao("Alunos", String.valueOf(totalAlunos)));
         add(cartao("Media geral", calcularMediaGeral()));
         add(cartao("Aulas criticas", String.valueOf(contarCriticas())));
+        add(cartao("Media dos quizzes", calcularMediaQuiz()));
     }
 
     private JPanel cartao(String titulo, String valor) {
@@ -63,5 +64,20 @@ public class PainelResumoMetricas extends JPanel {
             }
         }
         return quantidade;
+    }
+
+    private String calcularMediaQuiz() {
+        double soma = 0;
+        int quantidade = 0;
+        for (Aula aula : aulas) {
+            if (aula.getQuantidadeTentativasQuiz() > 0) {
+                soma += aula.calcularMediaAcertosQuiz();
+                quantidade++;
+            }
+        }
+        if (quantidade == 0) {
+            return "N/A";
+        }
+        return String.format("%.1f%%", soma / quantidade);
     }
 }

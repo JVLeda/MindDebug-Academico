@@ -20,6 +20,7 @@ public class PainelMateria extends JPanel {
     private JMenuItem itemChatEquipe;
     private JMenuItem itemChatGeral;
     private JMenuItem itemChatsAulas;
+    private JMenuItem itemQuiz;
     private JMenuItem itemSalvar;
     private JMenuItem itemTrocarSenha;
     private JMenuItem itemVoltar;
@@ -58,8 +59,10 @@ public class PainelMateria extends JPanel {
 
         itemMonitoria = item("Monitoria", 'M');
         itemRepositorio = item("Repositorio", 'R');
+        itemQuiz = item("Quiz", 'Q');
         menuMateria.add(itemMonitoria);
         menuMateria.add(itemRepositorio);
+        menuMateria.add(itemQuiz);
 
         if (janela.getUsuarioLogado().getNivel() >= 3) {
             itemAulas = item("Aulas", 'A');
@@ -155,6 +158,12 @@ public class PainelMateria extends JPanel {
                 mostrarConteudo("Monitoria", new ModuloMonitoria(janela));
             } else if (origem == itemRepositorio) {
                 mostrarConteudo("Repositorio de arquivos", new PainelRepositorio(janela));
+            } else if (origem == itemQuiz) {
+                if (janela.getUsuarioLogado().getNivel() >= 3) {
+                    mostrarConteudo("Gestao de quiz", new PainelGerenciarQuiz(janela));
+                } else {
+                    mostrarConteudo("Quiz", new PainelQuiz(janela));
+                }
             } else if (origem == itemChatEquipe) {
                 mostrarConteudo("Chat de equipe", new PainelChat(janela, "Chat de Equipe", janela.getMateriaAberta().getChatEquipe()));
             } else if (origem == itemChatGeral) {

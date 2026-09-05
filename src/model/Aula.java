@@ -6,6 +6,7 @@ public class Aula extends Entidade {
     private String titulo;
     private String data;
     private String objetivo;
+    private Quiz quiz;
     private ArrayList<Feedback> feedbacks = new ArrayList<>();
     private Chat chat = new Chat("Chat da aula");
 
@@ -50,6 +51,24 @@ public class Aula extends Entidade {
         return "Dominio total";
     }
 
+    public int getQuantidadeTentativasQuiz() {
+        if (quiz == null) {
+            return 0;
+        }
+        return quiz.getTentativas().size();
+    }
+
+    public double calcularMediaAcertosQuiz() {
+        if (getQuantidadeTentativasQuiz() == 0) {
+            return 0;
+        }
+        double soma = 0;
+        for (TentativaQuiz tentativa : quiz.getTentativas()) {
+            soma += tentativa.getPercentualAcertos();
+        }
+        return soma / getQuantidadeTentativasQuiz();
+    }
+
     public String getTitulo() {
         return titulo;
     }
@@ -68,6 +87,14 @@ public class Aula extends Entidade {
 
     public Chat getChat() {
         return chat;
+    }
+
+    public Quiz getQuiz() {
+        return quiz;
+    }
+
+    public void setQuiz(Quiz quiz) {
+        this.quiz = quiz;
     }
 
     @Override

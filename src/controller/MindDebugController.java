@@ -18,6 +18,11 @@ import model.Monitor;
 import model.PedidoMonitoria;
 import model.Periodo;
 import model.Professor;
+import model.Quiz;
+import model.PerguntaQuiz;
+import model.AlternativaQuiz;
+import model.TentativaQuiz;
+import model.RespostaQuiz;
 import model.Usuario;
 import util.Validador;
 
@@ -385,6 +390,123 @@ public class MindDebugController {
         }
         usuario.trocarSenha(validador.senha(novaSenha));
         usuarioDao.atualizar(usuario);
+    }
+
+    public Quiz criarQuiz(Usuario usuarioLogado, Materia materia, Aula aula, String titulo, String descricao) {
+        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "criar quiz");
+        validarAulaDaMateria(materia, aula);
+        if (aula.getQuiz() != null) {
+            throw new RuntimeException("Esta aula ja possui quiz.");
+        }
+
+        Quiz quiz = new Quiz(validador.texto(titulo, "Titulo do quiz"), descricao);
+        quiz.setId(banco.gerarId());
+        quiz.setAula(aula);
+        aula.setQuiz(quiz);
+        return quiz;
+    }
+
+    public PerguntaQuiz adicionarPerguntaAoQuiz(Usuario usuarioLogado, Materia materia, Quiz quiz,
+            String enunciado, String dificuldade, String[] textosAlternativas,
+            String[] explicacoes, int indiceCorreta) {
+        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "adicionar pergunta ao quiz");
+        validarQuizDaMateria(materia, quiz);
+        if (textosAlternativas == null || explicacoes == null || textosAlternativas.length != 4
+                || explicacoes.length != 4 || indiceCorreta < 0 || indiceCorreta > 3) {
+            throw new RuntimeException("Informe quatro alternativas e uma resposta correta.");
+        }
+
+        PerguntaQuiz pergunta = new PerguntaQuiz(
+                validador.texto(enunciado, "Enunciado"),
+                validador.texto(dificuldade, "Dificuldade")
+        );
+        pergunta.setId(banco.gerarId());
+
+        for (int i = 0; i < 4; i++) {
+            AlternativaQuiz alternativa = new AlternativaQuiz(
+                    validador.texto(textosAlternativas[i], "Alternativa"),
+                    explicacoes[i],
+                    i == indiceCorreta
+            );
+            alternativa.setId(banco.gerarId());
+            pergunta.adicionarAlternativa(alternativa);
+        }
+
+        quiz.adicionarPergunta(pergunta);
+        return pergunta;
+    }
+
+    public void removerQuiz(Usuario usuarioLogado, Materia materia, Aula aula) {
+        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "remover quiz");
+        validarAulaDaMateria(materia, aula);
+        if (aula.getQuiz() == null) {
+            throw new RuntimeException("A aula nao possui quiz.");
+        }
+        aula.setQuiz(null);
+    }
+
+    public TentativaQuiz iniciarTentativaQuiz(Usuario usuarioLogado, Materia materia, Quiz quiz) {
+        Estudante estudante = validarEstudanteDoQuiz(usuarioLogado, materia, quiz);
+        if (quiz.getPerguntas().isEmpty()) {
+            throw new RuntimeException("O quiz ainda nao possui perguntas.");
+        }
+
+        TentativaQuiz tentativa = new TentativaQuiz(estudante, quiz);
+        tentativa.setId(banco.gerarId());
+        return tentativa;
+    }
+
+    public void registrarRespostaQuiz(Usuario usuarioLogado, TentativaQuiz tentativa,
+            PerguntaQuiz pergunta, AlternativaQuiz alternativa) {
+        if (!(usuarioLogado instanceof Estudante) || tentativa == null
+                || tentativa.getEstudante() != usuarioLogado) {
+            throw new RuntimeException("Somente o estudante da tentativa pode responder.");
+        }
+        RespostaQuiz resposta = new RespostaQuiz(pergunta, alternativa);
+        resposta.setId(banco.gerarId());
+        tentativa.adicionarResposta(resposta);
+    }
+
+    public void finalizarTentativaQuiz(Usuario usuarioLogado, TentativaQuiz tentativa) {
+        if (!(usuarioLogado instanceof Estudante) || tentativa == null
+                || tentativa.getEstudante() != usuarioLogado) {
+            throw new RuntimeException("Somente o estudante da tentativa pode finalizar.");
+        }
+        if (tentativa.getRespostas().size() != tentativa.getQuiz().getPerguntas().size()) {
+            throw new RuntimeException("Responda todas as perguntas antes de finalizar.");
+        }
+        tentativa.calcularAcertos();
+        if (!tentativa.getQuiz().getTentativas().contains(tentativa)) {
+            tentativa.getQuiz().adicionarTentativa(tentativa);
+        }
+    }
+
+    private void validarAulaDaMateria(Materia materia, Aula aula) {
+        if (materia == null || aula == null || !materia.getAulas().contains(aula)) {
+            throw new RuntimeException("A aula nao pertence a esta materia.");
+        }
+    }
+
+    private void validarQuizDaMateria(Materia materia, Quiz quiz) {
+        if (quiz == null || quiz.getAula() == null) {
+            throw new RuntimeException("Quiz invalido.");
+        }
+        validarAulaDaMateria(materia, quiz.getAula());
+        if (quiz.getAula().getQuiz() != quiz) {
+            throw new RuntimeException("Quiz invalido.");
+        }
+    }
+
+    private Estudante validarEstudanteDoQuiz(Usuario usuarioLogado, Materia materia, Quiz quiz) {
+        if (!(usuarioLogado instanceof Estudante)) {
+            throw new RuntimeException("Somente estudante responde quiz.");
+        }
+        validarQuizDaMateria(materia, quiz);
+        Estudante estudante = (Estudante) usuarioLogado;
+        if (!materia.getEstudantes().contains(estudante)) {
+            throw new RuntimeException("Estudante nao participa desta materia.");
+        }
+        return estudante;
     }
 
     private void validarLoginLivre(String login) {

@@ -55,6 +55,59 @@ create table if not exists aulas (
     PRIMARY KEY (id)
 ) ;
 
+create table if not exists quizzes (
+    id INT NOT NULL,
+    aula_id INT NOT NULL,
+    titulo VARCHAR(100) NOT NULL,
+    descricao VARCHAR(300),
+    PRIMARY KEY (id),
+    UNIQUE (aula_id),
+    FOREIGN KEY (aula_id) REFERENCES aulas(id)
+) ;
+
+create table if not exists perguntas_quiz (
+    id INT NOT NULL,
+    quiz_id INT NOT NULL,
+    enunciado VARCHAR(500) NOT NULL,
+    dificuldade VARCHAR(20) NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(id)
+) ;
+
+create table if not exists alternativas_quiz (
+    id INT NOT NULL,
+    pergunta_id INT NOT NULL,
+    texto VARCHAR(255) NOT NULL,
+    explicacao VARCHAR(500),
+    correta BOOLEAN NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (pergunta_id) REFERENCES perguntas_quiz(id)
+) ;
+
+create table if not exists tentativas_quiz (
+    id INT NOT NULL,
+    quiz_id INT NOT NULL,
+    estudante_id INT NOT NULL,
+    data_tentativa VARCHAR(30),
+    acertos INT NOT NULL,
+    total_perguntas INT NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(id),
+    FOREIGN KEY (estudante_id) REFERENCES usuarios(id)
+) ;
+
+create table if not exists respostas_quiz (
+    id INT NOT NULL,
+    tentativa_id INT NOT NULL,
+    pergunta_id INT NOT NULL,
+    alternativa_id INT NOT NULL,
+    acertou BOOLEAN NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (tentativa_id) REFERENCES tentativas_quiz(id),
+    FOREIGN KEY (pergunta_id) REFERENCES perguntas_quiz(id),
+    FOREIGN KEY (alternativa_id) REFERENCES alternativas_quiz(id)
+) ;
+
 create table if not exists feedbacks (
     id INT NOT NULL AUTO_INCREMENT,
     aula_id INT NOT NULL,
