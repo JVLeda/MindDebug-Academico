@@ -127,8 +127,18 @@ public class PainelGerenciarQuiz extends JPanel {
         lista.setVisibleRowCount(7);
         perguntas.add(new JScrollPane(lista), BorderLayout.CENTER);
 
-        painel.add(formulario, BorderLayout.NORTH);
-        painel.add(perguntas, BorderLayout.CENTER);
+        JPanel conteudo = new JPanel();
+        conteudo.setLayout(new BoxLayout(conteudo, BoxLayout.Y_AXIS));
+        formulario.setAlignmentX(Component.LEFT_ALIGNMENT);
+        perguntas.setAlignmentX(Component.LEFT_ALIGNMENT);
+        conteudo.add(formulario);
+        conteudo.add(Box.createVerticalStrut(12));
+        conteudo.add(perguntas);
+
+        JScrollPane rolagem = new JScrollPane(conteudo);
+        rolagem.setBorder(null);
+        rolagem.getVerticalScrollBar().setUnitIncrement(16);
+        painel.add(rolagem, BorderLayout.CENTER);
         return painel;
     }
 
