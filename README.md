@@ -20,3 +20,19 @@ Esse ciclo permite comparar o diagnóstico inicial de compreensão com o desempe
 4. Use o quiz como um exemplo de intervenção no menu `Matéria > Quiz` e adicione perguntas sobre o objetivo da aula.
 5. Entre como aluno, responda o quiz e volte ao perfil do professor.
 6. Atualize o dashboard para mostrar as tentativas e a média de acertos do quiz.
+
+## Executar a versao atual
+
+Antes da demonstracao, compile a aplicacao a partir de `src`. Nao use apenas o conteudo ja existente em `out/production`, pois esse diretorio pode conter uma compilacao anterior.
+
+No PowerShell, na raiz do projeto:
+
+```powershell
+$classes = "tmp\\minddebug-demo"
+New-Item -ItemType Directory -Force -Path $classes | Out-Null
+$fontes = Get-ChildItem src -Recurse -Filter *.java | ForEach-Object { $_.FullName }
+javac -encoding UTF-8 -cp "src\\lib\\mysql-connector-j-9.3.0.jar" -d $classes $fontes
+java -cp "$classes;src\\lib\\mysql-connector-j-9.3.0.jar" app.Main
+```
+
+Assim, a demonstracao usa a gestao de quiz atualizada e o estado de disponibilidade do quiz para o aluno.
