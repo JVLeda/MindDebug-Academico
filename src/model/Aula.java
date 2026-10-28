@@ -56,7 +56,7 @@ public class Aula extends Entidade {
             return "Aguardar feedback da turma";
         }
         if (calcularMedia() < 7) {
-            return "Elaborar quiz de reforco";
+            return "Planejar acao de reforco";
         }
         return "Manter acompanhamento";
     }

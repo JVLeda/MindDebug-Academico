@@ -13,8 +13,8 @@ public class AulaIntervencaoPedagogicaTest {
         Aula aulaCritica = new Aula("Heranca", "02/01/2026", "Heranca e polimorfismo");
         aulaCritica.registrarFeedback(new Feedback(aluno1, 3, "Dificil"));
         aulaCritica.registrarFeedback(new Feedback(aluno2, 4, "Preciso revisar"));
-        verificar("Elaborar quiz de reforco".equals(aulaCritica.getAcaoPedagogica()),
-                "Aula critica deve recomendar quiz de reforco");
+        verificar("Planejar acao de reforco".equals(aulaCritica.getAcaoPedagogica()),
+                "Aula critica deve recomendar uma acao de reforco");
 
         Aula aulaComDominio = new Aula("Classes", "03/01/2026", "Objetos e classes");
         aulaComDominio.registrarFeedback(new Feedback(aluno1, 8, "Entendi"));
