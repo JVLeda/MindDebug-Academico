@@ -51,6 +51,23 @@ public class Aula extends Entidade {
         return "Dominio total";
     }
 
+    public String getAcaoPedagogica() {
+        if (feedbacks.isEmpty()) {
+            return "Aguardar feedback da turma";
+        }
+        if (calcularMedia() < 7) {
+            return "Elaborar quiz de reforco";
+        }
+        return "Manter acompanhamento";
+    }
+
+    public String getParticipacaoDaTurma(int totalEstudantes) {
+        if (totalEstudantes <= 0) {
+            return "0%";
+        }
+        return Math.round((feedbacks.size() * 100.0) / totalEstudantes) + "%";
+    }
+
     public int getQuantidadeTentativasQuiz() {
         if (quiz == null) {
             return 0;

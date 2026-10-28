@@ -31,7 +31,7 @@ public class PainelDashboard extends JPanel {
         graficos.add(new GraficoMediasAulas(aulas));
         graficos.add(new GraficoStatusAulas(aulas));
 
-        String[] colunas = {"Aula", "Data", "Feedbacks", "Media feedback", "Status", "Tentativas quiz", "Media quiz"};
+        String[] colunas = {"Aula", "Data", "Participacao", "Media feedback", "Status", "Acao pedagogica", "Tentativas quiz", "Media quiz"};
         DefaultTableModel modelo = new DefaultTableModel(colunas, 0);
         for (Aula aula : aulas) {
             int respostas = aula.getFeedbacks().size();
@@ -41,9 +41,10 @@ public class PainelDashboard extends JPanel {
             modelo.addRow(new Object[]{
                     aula.getTitulo(),
                     aula.getData(),
-                    respostas + "/" + totalAlunos,
+                    respostas + "/" + totalAlunos + " (" + aula.getParticipacaoDaTurma(totalAlunos) + ")",
                     media,
                     aula.getStatus(),
+                    aula.getAcaoPedagogica(),
                     tentativas,
                     mediaQuiz
             });
