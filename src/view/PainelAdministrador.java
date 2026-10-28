@@ -5,7 +5,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
-public class PainelDev extends JPanel {
+public class PainelAdministrador extends JPanel {
     private JanelaMindDebug janela;
     private JPanel areaConteudo;
     private JLabel tituloConteudo;
@@ -20,7 +20,7 @@ public class PainelDev extends JPanel {
     private JMenuItem itemSair;
     private JMenuItem itemSobre;
 
-    public PainelDev(JanelaMindDebug janela) {
+    public PainelAdministrador(JanelaMindDebug janela) {
         this.janela = janela;
         setLayout(new BorderLayout(12, 12));
         setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
@@ -52,15 +52,12 @@ public class PainelDev extends JPanel {
         menuCadastros.add(itemDisciplinas);
         menuCadastros.add(itemUsuarios);
         menuCadastros.add(itemSenhas);
-
         menuSistema.add(itemAcessarMateria);
         menuSistema.add(itemSalvar);
         menuSistema.add(itemTrocarSenha);
         menuSistema.addSeparator();
         menuSistema.add(itemSair);
-
         menuAjuda.add(itemSobre);
-
         barraMenu.add(menuCadastros);
         barraMenu.add(menuSistema);
         barraMenu.add(menuAjuda);
@@ -76,17 +73,14 @@ public class PainelDev extends JPanel {
 
     private void montarTela() {
         add(janela.cabecalho(""), BorderLayout.NORTH);
-
         JPanel centro = new JPanel(new BorderLayout(8, 8));
         tituloConteudo = new JLabel();
         tituloConteudo.setFont(new Font("Arial", Font.BOLD, 18));
         areaConteudo = new JPanel(new BorderLayout());
-
         centro.add(tituloConteudo, BorderLayout.NORTH);
         centro.add(areaConteudo, BorderLayout.CENTER);
         add(centro, BorderLayout.CENTER);
-
-        mostrarConteudo("Cursos e periodos", new PainelCursosPeriodos(janela));
+        mostrarConteudo("Estrutura academica", new PainelCursosPeriodos(janela));
     }
 
     private void mostrarConteudo(String titulo, JPanel painel) {
@@ -101,15 +95,14 @@ public class PainelDev extends JPanel {
         @Override
         public void actionPerformed(ActionEvent evento) {
             Object origem = evento.getSource();
-
             if (origem == itemCursos) {
-                mostrarConteudo("Cursos e periodos", new PainelCursosPeriodos(janela));
+                mostrarConteudo("Estrutura academica", new PainelCursosPeriodos(janela));
             } else if (origem == itemDisciplinas) {
                 mostrarConteudo("Gestao de disciplinas", new PainelDisciplinas(janela));
             } else if (origem == itemUsuarios) {
                 mostrarConteudo("Gestao de usuarios", new PainelUsuarios(janela));
             } else if (origem == itemSenhas) {
-                mostrarConteudo("Redefinicao de senhas", new ModuloSenhasDev(janela));
+                mostrarConteudo("Redefinicao de senhas", new ModuloSenhasAdministrador(janela));
             } else if (origem == itemAcessarMateria) {
                 janela.mostrarNavegacao();
             } else if (origem == itemSalvar) {

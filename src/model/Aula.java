@@ -61,6 +61,10 @@ public class Aula extends Entidade {
         return "Manter acompanhamento";
     }
 
+    public boolean precisaAcaoDeReforco() {
+        return !feedbacks.isEmpty() && calcularMedia() < 7;
+    }
+
     public String getParticipacaoDaTurma(int totalEstudantes) {
         if (totalEstudantes <= 0) {
             return "0%";

@@ -5,6 +5,8 @@ import model.PerguntaQuiz;
 import model.Quiz;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 
 public class PainelGerenciarQuiz extends JPanel {
@@ -77,6 +79,8 @@ public class PainelGerenciarQuiz extends JPanel {
         descricao = new JTextField(28);
         criar = janela.botao("Criar quiz desta aula");
         remover = janela.botao("Remover quiz");
+        titulo.getDocument().addDocumentListener(new AtualizadorCriacaoQuiz());
+        descricao.getDocument().addDocumentListener(new AtualizadorCriacaoQuiz());
         janela.adicionarLinha(formulario, gbc, 0, "Titulo:", titulo);
         janela.adicionarLinha(formulario, gbc, 1, "Descricao:", descricao);
         janela.adicionarComponente(formulario, gbc, 2, janela.painelBotoes(criar, remover));
@@ -191,7 +195,7 @@ public class PainelGerenciarQuiz extends JPanel {
         boolean possuiQuiz = quiz != null;
         titulo.setEnabled(!possuiQuiz);
         descricao.setEnabled(!possuiQuiz);
-        criar.setEnabled(!possuiQuiz && getAulaSelecionada() != null);
+        atualizarDisponibilidadeCriacao();
         remover.setEnabled(possuiQuiz);
         abas.setEnabledAt(1, possuiQuiz);
 
@@ -231,6 +235,31 @@ public class PainelGerenciarQuiz extends JPanel {
         for (int i = 0; i < 4; i++) {
             alternativas[i].setText("");
             explicacoes[i].setText("");
+        }
+    }
+
+    private void atualizarDisponibilidadeCriacao() {
+        if (criar == null || titulo == null || descricao == null) {
+            return;
+        }
+        criar.setEnabled(getQuizSelecionado() == null && getAulaSelecionada() != null
+                && !titulo.getText().trim().isEmpty() && !descricao.getText().trim().isEmpty());
+    }
+
+    private class AtualizadorCriacaoQuiz implements DocumentListener {
+        @Override
+        public void insertUpdate(DocumentEvent evento) {
+            atualizarDisponibilidadeCriacao();
+        }
+
+        @Override
+        public void removeUpdate(DocumentEvent evento) {
+            atualizarDisponibilidadeCriacao();
+        }
+
+        @Override
+        public void changedUpdate(DocumentEvent evento) {
+            atualizarDisponibilidadeCriacao();
         }
     }
 

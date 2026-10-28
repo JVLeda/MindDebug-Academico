@@ -38,7 +38,7 @@ public class TelaLogin extends JPanel {
         janela.adicionarComponente(caixa, gbc, 4, cadastrar);
         janela.adicionarComponente(caixa, gbc, 5, esqueciSenha);
 
-        JTextArea acessos = new JTextArea("Login Dev: dev / 1234\nLogin Professor: prof / 1234\nLogin Monitor: monitor / 1234\nLogin Aluno: 2026001 / 1234");
+        JTextArea acessos = new JTextArea("Login Administrador: admin / 1234\nLogin Professor: prof / 1234\nLogin Monitor: monitor / 1234\nLogin Aluno: 2026001 / 1234");
         acessos.setEditable(false);
         acessos.setOpaque(false);
         janela.adicionarComponente(caixa, gbc, 6, acessos);
@@ -46,14 +46,14 @@ public class TelaLogin extends JPanel {
         entrar.addActionListener(e -> janela.tentar(() -> {
             janela.setUsuarioLogado(janela.getController().fazerLogin(campoUsuario.getText(), new String(campoSenha.getPassword())));
             if (janela.getUsuarioLogado().getNivel() == 4) {
-                janela.mostrarPainelDev();
+                janela.mostrarPainelAdministrador();
             } else {
                 janela.mostrarNavegacao();
             }
         }));
 
         cadastrar.addActionListener(e -> abrirCadastroAluno());
-        esqueciSenha.addActionListener(e -> JOptionPane.showMessageDialog(janela, "Procure o Dev para redefinir sua senha."));
+        esqueciSenha.addActionListener(e -> JOptionPane.showMessageDialog(janela, "Procure o Administrador do Sistema para redefinir sua senha."));
 
         add(caixa);
     }

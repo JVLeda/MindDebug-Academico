@@ -15,12 +15,16 @@ public class AulaIntervencaoPedagogicaTest {
         aulaCritica.registrarFeedback(new Feedback(aluno2, 4, "Preciso revisar"));
         verificar("Planejar acao de reforco".equals(aulaCritica.getAcaoPedagogica()),
                 "Aula critica deve recomendar uma acao de reforco");
+        verificar(aulaCritica.precisaAcaoDeReforco(),
+                "Media abaixo de 7 deve indicar necessidade de reforco, sem limitar a acao a quiz");
 
         Aula aulaComDominio = new Aula("Classes", "03/01/2026", "Objetos e classes");
         aulaComDominio.registrarFeedback(new Feedback(aluno1, 8, "Entendi"));
         aulaComDominio.registrarFeedback(new Feedback(aluno2, 9, "Entendi"));
         verificar("Manter acompanhamento".equals(aulaComDominio.getAcaoPedagogica()),
                 "Aula com dominio deve manter acompanhamento");
+        verificar(!aulaComDominio.precisaAcaoDeReforco(),
+                "Media igual ou superior a 7 nao deve ser contada como reforco");
 
         verificar("50%".equals(aulaCritica.getParticipacaoDaTurma(4)),
                 "Participacao deve usar feedbacks enviados sobre o total de estudantes");

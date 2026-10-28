@@ -7,7 +7,7 @@ import dao.UsuarioDao;
 import model.Aula;
 import model.Chat;
 import model.Curso;
-import model.Dev;
+import model.Administrador;
 import model.Estudante;
 import model.Feedback;
 import model.GrupoEstudo;
@@ -202,7 +202,7 @@ public class MindDebugController {
     }
 
     public Aula criarAula(Usuario usuarioLogado, Materia materia, String titulo, String data) {
-        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "criar aula");
+        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "criar aula");
         Aula aula = new Aula(validador.texto(titulo, "Titulo da aula"), data, "");
         aula.setId(banco.gerarId());
         materia.adicionarAula(aula);
@@ -210,7 +210,7 @@ public class MindDebugController {
     }
 
     public void adicionarMonitorNaMateria(Usuario usuarioLogado, Materia materia, Monitor monitor) {
-        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "adicionar monitor");
+        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "adicionar monitor");
         materia.adicionarParticipante(monitor);
     }
 
@@ -258,7 +258,7 @@ public class MindDebugController {
     }
 
     public GrupoEstudo criarGrupoEstudo(Usuario usuarioLogado, Materia materia, String nome, Aula aula, Monitor monitor) {
-        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "criar grupo de estudo");
+        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "criar grupo de estudo");
         if (aula != null && !materia.getAulas().contains(aula)) {
             throw new RuntimeException("A aula escolhida nao pertence a esta materia.");
         }
@@ -280,31 +280,31 @@ public class MindDebugController {
     }
 
     public void adicionarAlunoAoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Estudante estudante) {
-        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "adicionar aluno ao grupo");
+        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "adicionar aluno ao grupo");
         validarGrupoEEstudante(materia, grupo, estudante);
         grupo.adicionarEstudante(estudante);
     }
 
     public void removerAlunoDoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Estudante estudante) {
-        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "remover aluno do grupo");
+        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "remover aluno do grupo");
         validarGrupoEEstudante(materia, grupo, estudante);
         grupo.removerEstudante(estudante);
     }
 
     public void adicionarMonitorAoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Monitor monitor) {
-        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "adicionar monitor ao grupo");
+        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "adicionar monitor ao grupo");
         validarGrupoEMonitor(materia, grupo, monitor);
         grupo.adicionarMonitor(monitor);
     }
 
     public void removerMonitorDoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Monitor monitor) {
-        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "remover monitor do grupo");
+        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "remover monitor do grupo");
         validarGrupoEMonitor(materia, grupo, monitor);
         grupo.removerMonitor(monitor);
     }
 
     public void removerGrupoEstudo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo) {
-        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "remover grupo de estudo");
+        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "remover grupo de estudo");
         if (grupo == null || !materia.getGrupos().contains(grupo)) {
             throw new RuntimeException("Selecione um grupo.");
         }
@@ -393,7 +393,7 @@ public class MindDebugController {
     }
 
     public Quiz criarQuiz(Usuario usuarioLogado, Materia materia, Aula aula, String titulo, String descricao) {
-        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "criar quiz");
+        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "criar quiz");
         validarAulaDaMateria(materia, aula);
         if (aula.getQuiz() != null) {
             throw new RuntimeException("Esta aula ja possui quiz.");
@@ -409,7 +409,7 @@ public class MindDebugController {
     public PerguntaQuiz adicionarPerguntaAoQuiz(Usuario usuarioLogado, Materia materia, Quiz quiz,
             String enunciado, String dificuldade, String[] textosAlternativas,
             String[] explicacoes, int indiceCorreta) {
-        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "adicionar pergunta ao quiz");
+        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "adicionar pergunta ao quiz");
         validarQuizDaMateria(materia, quiz);
         if (textosAlternativas == null || explicacoes == null || textosAlternativas.length != 4
                 || explicacoes.length != 4 || indiceCorreta < 0 || indiceCorreta > 3) {
@@ -437,7 +437,7 @@ public class MindDebugController {
     }
 
     public void removerQuiz(Usuario usuarioLogado, Materia materia, Aula aula) {
-        exigirProfessorDaMateriaOuDev(usuarioLogado, materia, "remover quiz");
+        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "remover quiz");
         validarAulaDaMateria(materia, aula);
         if (aula.getQuiz() == null) {
             throw new RuntimeException("A aula nao possui quiz.");
@@ -521,11 +521,11 @@ public class MindDebugController {
         }
     }
 
-    private void exigirProfessorDaMateriaOuDev(Usuario usuario, Materia materia, String acao) {
+    private void exigirProfessorDaMateriaOuAdministrador(Usuario usuario, Materia materia, String acao) {
         if (usuario == null || materia == null) {
             throw new RuntimeException("Dados invalidos.");
         }
-        boolean dev = usuario.getNivel() == 4;
+        boolean administrador = usuario.getNivel() == 4;
         boolean professorSemDesignacao = usuario instanceof Professor && materia.getProfessor() == null;
         boolean professorDaMateria = false;
 
@@ -533,7 +533,7 @@ public class MindDebugController {
             professorDaMateria = usuario.getId() == materia.getProfessor().getId();
         }
 
-        if (!professorDaMateria && !professorSemDesignacao && !dev) {
+        if (!professorDaMateria && !professorSemDesignacao && !administrador) {
             throw new RuntimeException("Sem permissao para " + acao + ".");
         }
     }
@@ -573,11 +573,11 @@ public class MindDebugController {
             return;
         }
 
-        Dev dev = new Dev("Equipe Dev", "dev", "dev@minddebug.edu.br", "1234");
+        Administrador administrador = new Administrador("Administrador do Sistema", "admin", "admin@minddebug.edu.br", "1234");
         Professor professor = new Professor("Professor 1", "prof", "prof@minddebug.edu.br", "1234");
         Monitor monitor = new Monitor("Monitor 1", "monitor", "monitor@minddebug.edu.br", "1234", "Monitor");
 
-        usuarioDao.cadastrar(dev);
+        usuarioDao.cadastrar(administrador);
         usuarioDao.cadastrar(professor);
         usuarioDao.cadastrar(monitor);
 

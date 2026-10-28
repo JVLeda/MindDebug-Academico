@@ -21,7 +21,7 @@ public class PainelResumoMetricas extends JPanel {
         add(cartao("Aulas", String.valueOf(aulas.size())));
         add(cartao("Alunos", String.valueOf(totalAlunos)));
         add(cartao("Media geral", calcularMediaGeral()));
-        add(cartao("Aulas criticas", String.valueOf(contarCriticas())));
+        add(cartao("Aulas com reforco", String.valueOf(contarAulasComReforco())));
         add(cartao("Media dos quizzes", calcularMediaQuiz()));
     }
 
@@ -56,10 +56,10 @@ public class PainelResumoMetricas extends JPanel {
         return String.format("%.1f", soma / quantidade);
     }
 
-    private int contarCriticas() {
+    private int contarAulasComReforco() {
         int quantidade = 0;
         for (Aula aula : aulas) {
-            if (aula.getStatus().equals("Critico")) {
+            if (aula.precisaAcaoDeReforco()) {
                 quantidade++;
             }
         }

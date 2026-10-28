@@ -41,8 +41,8 @@ public class JanelaMindDebug extends JFrame {
         mostrarTela(new TelaNavegacao(this));
     }
 
-    public void mostrarPainelDev() {
-        mostrarTela(new PainelDev(this));
+    public void mostrarPainelAdministrador() {
+        mostrarTela(new PainelAdministrador(this));
     }
 
     public void mostrarMateria() {

@@ -3,7 +3,7 @@ package dao;
 import model.Aula;
 import model.Chat;
 import model.Curso;
-import model.Dev;
+import model.Administrador;
 import model.Estudante;
 import model.Feedback;
 import model.GrupoEstudo;
@@ -187,8 +187,8 @@ public class BancoDao {
                 String cargo = resultado.getString("cargo");
                 Usuario usuario;
 
-                if ("Dev".equals(cargo)) {
-                    usuario = new Dev(
+                if ("Dev".equals(cargo) || "Administrador do Sistema".equals(cargo)) {
+                    usuario = new Administrador(
                             resultado.getString("nome"),
                             resultado.getString("login"),
                             resultado.getString("email"),

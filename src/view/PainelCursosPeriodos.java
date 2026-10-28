@@ -47,7 +47,7 @@ public class PainelCursosPeriodos extends JPanel {
 
         confirmar.addActionListener(e -> janela.tentar(() -> {
             janela.getController().criarCurso(janela.getUsuarioLogado(), nome.getText(), sigla.getText(), area.getText(), Integer.parseInt(carga.getText()), coordenador.getText());
-            janela.mostrarPainelDev();
+            janela.mostrarPainelAdministrador();
         }));
         limpar.addActionListener(e -> {
             nome.setText("");
@@ -76,7 +76,7 @@ public class PainelCursosPeriodos extends JPanel {
 
         confirmar.addActionListener(e -> janela.tentar(() -> {
             janela.getController().criarPeriodo(janela.getUsuarioLogado(), (Curso) curso.getSelectedItem(), Integer.parseInt(numero.getText()), nome.getText());
-            janela.mostrarPainelDev();
+            janela.mostrarPainelAdministrador();
         }));
         cancelar.addActionListener(e -> nome.setText(""));
 

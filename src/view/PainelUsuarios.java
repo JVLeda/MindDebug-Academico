@@ -47,7 +47,7 @@ public class PainelUsuarios extends JPanel {
 
         cadastrar.addActionListener(e -> janela.tentar(() -> {
             janela.getController().cadastrarUsuarioPeloCargo(janela.getUsuarioLogado(), nome.getText(), login.getText(), new String(senha.getPassword()), (String) cargo.getSelectedItem());
-            janela.mostrarPainelDev();
+            janela.mostrarPainelAdministrador();
         }));
 
         remover.addActionListener(e -> janela.tentar(() -> {
@@ -56,7 +56,7 @@ public class PainelUsuarios extends JPanel {
                 throw new RuntimeException("Escolha um usuario.");
             }
             janela.getController().removerUsuario(janela.getUsuarioLogado(), janela.getController().listarUsuarios().get(linha));
-            janela.mostrarPainelDev();
+            janela.mostrarPainelAdministrador();
         }));
 
         add(cadastro, BorderLayout.SOUTH);

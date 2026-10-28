@@ -22,7 +22,7 @@ public abstract class Usuario extends Entidade {
     }
 
     public boolean podeApagarConteudoDe(Usuario autor) {
-        return this == autor || getNivel() >= 2;
+        return this == autor || (getNivel() >= 2 && getNivel() < 4);
     }
 
     public void trocarSenha(String novaSenha) {

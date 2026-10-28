@@ -1,7 +1,7 @@
 package model;
 
-public class Dev extends Usuario implements Moderador {
-    public Dev(String nome, String login, String email, String senha) {
+public class Administrador extends Usuario implements Moderador {
+    public Administrador(String nome, String login, String email, String senha) {
         super(nome, login, email, senha);
     }
 
@@ -12,7 +12,7 @@ public class Dev extends Usuario implements Moderador {
 
     @Override
     public String getCargo() {
-        return "Dev";
+        return "Administrador do Sistema";
     }
 
     @Override
