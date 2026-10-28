@@ -60,13 +60,50 @@ public class PainelQuiz extends JPanel {
         centro.add(respostas, BorderLayout.SOUTH);
         add(centro, BorderLayout.CENTER);
 
+        aulas.addActionListener(e -> atualizarDisponibilidadeQuiz(iniciar));
+        atualizarDisponibilidadeQuiz(iniciar);
+
         iniciar.addActionListener(e -> janela.tentar(() -> {
-            Aula aula = (Aula) aulas.getSelectedItem();
-            Quiz quiz = aula == null ? null : aula.getQuiz();
+            Quiz quiz = getQuizSelecionado();
             tentativa = janela.getController().iniciarTentativaQuiz(janela.getUsuarioLogado(), janela.getMateriaAberta(), quiz);
             indicePergunta = 0;
             mostrarPergunta();
         }));
+    }
+
+    private void atualizarDisponibilidadeQuiz(JButton iniciar) {
+        Aula aula = (Aula) aulas.getSelectedItem();
+        Quiz quiz = getQuizSelecionado();
+        limparRespostas();
+
+        if (aula == null || quiz == null) {
+            titulo.setText("Esta aula ainda nao possui quiz.");
+            enunciado.setText("Escolha outra aula ou aguarde o professor disponibilizar um quiz.");
+            iniciar.setEnabled(false);
+            return;
+        }
+        if (!quiz.estaProntoParaResponder()) {
+            titulo.setText("Quiz em preparacao: " + quiz.getTitulo());
+            enunciado.setText("O professor ainda esta cadastrando as perguntas. Este quiz nao esta disponivel para resposta.");
+            iniciar.setEnabled(false);
+            return;
+        }
+
+        titulo.setText("Quiz disponivel: " + quiz.getTitulo() + " (" + quiz.getPerguntas().size() + " pergunta(s))");
+        enunciado.setText(quiz.getDescricao());
+        iniciar.setEnabled(true);
+    }
+
+    private void limparRespostas() {
+        for (JButton botao : botoes) {
+            botao.setText("");
+            botao.setEnabled(false);
+        }
+    }
+
+    private Quiz getQuizSelecionado() {
+        Aula aula = (Aula) aulas.getSelectedItem();
+        return aula == null ? null : aula.getQuiz();
     }
 
     private void mostrarResumo() {

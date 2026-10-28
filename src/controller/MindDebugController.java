@@ -447,7 +447,7 @@ public class MindDebugController {
 
     public TentativaQuiz iniciarTentativaQuiz(Usuario usuarioLogado, Materia materia, Quiz quiz) {
         Estudante estudante = validarEstudanteDoQuiz(usuarioLogado, materia, quiz);
-        if (quiz.getPerguntas().isEmpty()) {
+        if (!quiz.estaProntoParaResponder()) {
             throw new RuntimeException("O quiz ainda nao possui perguntas.");
         }
 

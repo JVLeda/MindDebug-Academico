@@ -64,6 +64,10 @@ public class Quiz extends Entidade {
         return Collections.unmodifiableList(perguntas);
     }
 
+    public boolean estaProntoParaResponder() {
+        return !perguntas.isEmpty();
+    }
+
     public List<TentativaQuiz> getTentativas() {
         return Collections.unmodifiableList(tentativas);
     }
