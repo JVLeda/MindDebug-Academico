@@ -30,6 +30,11 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 
 public class BancoDao {
+    public static String mensagemDeConexaoIndisponivel(String detalhe) {
+        return "Nao foi possivel conectar ao MySQL em localhost:3307. "
+                + "Confirme se o servico esta ativo e se o banco configurado existe. Detalhe: " + detalhe;
+    }
+
     public BancoDados carregar() {
         criarTabelas();
 
@@ -87,29 +92,14 @@ public class BancoDao {
             Connection conexao = Conexao.getConnection();
             Statement comando = conexao.createStatement();
 
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS cursos (id INT PRIMARY KEY, nome VARCHAR(100), sigla VARCHAR(20), area VARCHAR(100), carga_horaria INT, coordenador VARCHAR(100))");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS usuarios (id INT PRIMARY KEY, nome VARCHAR(100), login VARCHAR(50), email VARCHAR(100), senha VARCHAR(50), cargo VARCHAR(30), tipo_monitor VARCHAR(30), matricula VARCHAR(50), curso_id INT)");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS periodos (id INT PRIMARY KEY, curso_id INT, numero INT, nome VARCHAR(100))");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS materias (id INT PRIMARY KEY, periodo_id INT, nome VARCHAR(100), professor_id INT)");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS participantes (materia_id INT, usuario_id INT)");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS aulas (id INT PRIMARY KEY, materia_id INT, titulo VARCHAR(100), data_aula VARCHAR(20), objetivo VARCHAR(200))");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS feedbacks (id INT PRIMARY KEY AUTO_INCREMENT, aula_id INT, estudante_id INT, nota INT, comentario VARCHAR(200))");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS materiais (id INT PRIMARY KEY, materia_id INT, titulo VARCHAR(100), tipo VARCHAR(30), referencia VARCHAR(300), autor_id INT)");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS mensagens (id INT PRIMARY KEY, origem VARCHAR(20), origem_id INT, autor_id INT, texto VARCHAR(500))");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS grupos_estudo (id INT PRIMARY KEY, materia_id INT, nome VARCHAR(100), aula_id INT, monitor_id INT)");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS grupos_estudo_alunos (grupo_id INT, estudante_id INT)");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS grupos_estudo_monitores (grupo_id INT, monitor_id INT)");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS pedidos_monitoria (id INT PRIMARY KEY, materia_id INT, estudante_id INT, aula_id INT, monitor_id INT, duvida VARCHAR(300), status VARCHAR(30), data_monitoria VARCHAR(20), horario VARCHAR(10))");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS quizzes (id INT PRIMARY KEY, aula_id INT NOT NULL UNIQUE, titulo VARCHAR(100) NOT NULL, descricao VARCHAR(300), FOREIGN KEY (aula_id) REFERENCES aulas(id))");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS perguntas_quiz (id INT PRIMARY KEY, quiz_id INT NOT NULL, enunciado VARCHAR(500) NOT NULL, dificuldade VARCHAR(20) NOT NULL, FOREIGN KEY (quiz_id) REFERENCES quizzes(id))");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS alternativas_quiz (id INT PRIMARY KEY, pergunta_id INT NOT NULL, texto VARCHAR(255) NOT NULL, explicacao VARCHAR(500), correta BOOLEAN NOT NULL, FOREIGN KEY (pergunta_id) REFERENCES perguntas_quiz(id))");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS tentativas_quiz (id INT PRIMARY KEY, quiz_id INT NOT NULL, estudante_id INT NOT NULL, data_tentativa VARCHAR(30), acertos INT NOT NULL, total_perguntas INT NOT NULL, FOREIGN KEY (quiz_id) REFERENCES quizzes(id), FOREIGN KEY (estudante_id) REFERENCES usuarios(id))");
-            comando.executeUpdate("CREATE TABLE IF NOT EXISTS respostas_quiz (id INT PRIMARY KEY, tentativa_id INT NOT NULL, pergunta_id INT NOT NULL, alternativa_id INT NOT NULL, acertou BOOLEAN NOT NULL, FOREIGN KEY (tentativa_id) REFERENCES tentativas_quiz(id), FOREIGN KEY (pergunta_id) REFERENCES perguntas_quiz(id), FOREIGN KEY (alternativa_id) REFERENCES alternativas_quiz(id))");
+            for (String comandoSql : EsquemaBanco.comandosDeCriacao()) {
+                comando.executeUpdate(comandoSql);
+            }
 
             comando.close();
             conexao.close();
         } catch (Exception erro) {
-            throw new RuntimeException("Erro ao criar tabelas: " + erro.getMessage());
+            throw new RuntimeException(mensagemDeConexaoIndisponivel(erro.getMessage()));
         }
     }
 
@@ -140,7 +130,7 @@ public class BancoDao {
             comando.close();
             conexao.close();
         } catch (Exception erro) {
-            throw new RuntimeException("Erro ao limpar tabelas: " + erro.getMessage());
+            throw new RuntimeException(mensagemDeConexaoIndisponivel(erro.getMessage()));
         }
     }
 
