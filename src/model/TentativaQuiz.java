@@ -1,8 +1,11 @@
 package model;
 
-import java.time.LocalDateTime;
+import excecao.DadoInvalidoException;
+import excecao.RegraDeNegocioException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 public class TentativaQuiz extends Entidade {
@@ -15,19 +18,19 @@ public class TentativaQuiz extends Entidade {
 
     public TentativaQuiz(Estudante estudante, Quiz quiz) {
         if (estudante == null) {
-            throw new RuntimeException("Estudante obrigatorio");
+            throw new DadoInvalidoException("Estudante obrigatorio");
         }
         if (quiz == null) {
-            throw new RuntimeException("Quiz obrigatorio");
+            throw new DadoInvalidoException("Quiz obrigatorio");
         }
         this.estudante = estudante;
         this.quiz = quiz;
-        this.dataTentativa = LocalDateTime.now().toString();
+        this.dataTentativa = new SimpleDateFormat("dd/MM/yyyy HH:mm").format(new Date());
     }
 
     public static TentativaQuiz restaurar(Estudante estudante, Quiz quiz, int acertos, int totalPerguntas) {
         if (acertos < 0 || totalPerguntas < 0 || acertos > totalPerguntas) {
-            throw new RuntimeException("Resultado da tentativa invalido");
+            throw new DadoInvalidoException("Resultado da tentativa invalido");
         }
         TentativaQuiz tentativa = new TentativaQuiz(estudante, quiz);
         tentativa.acertos = acertos;
@@ -37,14 +40,14 @@ public class TentativaQuiz extends Entidade {
 
     public void adicionarResposta(RespostaQuiz resposta) {
         if (resposta == null) {
-            throw new RuntimeException("Resposta obrigatoria");
+            throw new DadoInvalidoException("Resposta obrigatoria");
         }
         if (!quiz.getPerguntas().contains(resposta.getPergunta())) {
-            throw new RuntimeException("Pergunta nao pertence ao quiz");
+            throw new RegraDeNegocioException("Pergunta nao pertence ao quiz");
         }
         for (RespostaQuiz respostaExistente : respostas) {
             if (respostaExistente.getPergunta() == resposta.getPergunta()) {
-                throw new RuntimeException("Pergunta ja respondida");
+                throw new RegraDeNegocioException("Pergunta ja respondida");
             }
         }
         respostas.add(resposta);

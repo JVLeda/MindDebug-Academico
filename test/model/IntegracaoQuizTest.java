@@ -1,5 +1,7 @@
 package model;
 
+import excecao.RegraDeNegocioException;
+
 public class IntegracaoQuizTest {
     public static void main(String[] args) {
         Quiz quiz = new Quiz("Revisao de classes", "Verificacao de conceitos");
@@ -19,22 +21,18 @@ public class IntegracaoQuizTest {
         assertEquals(1, tentativa.calcularAcertos(), "A resposta correta deve ser contabilizada.");
         assertEquals(100.0, tentativa.getPercentualAcertos(), "O percentual deve refletir o total de perguntas.");
 
-        assertThrows(() -> tentativa.adicionarResposta(new RespostaQuiz(pergunta, alternativaIncorreta)),
-                "A mesma pergunta nao pode ser respondida duas vezes.");
+        boolean bloqueou = false;
+        try {
+            tentativa.adicionarResposta(new RespostaQuiz(pergunta, alternativaIncorreta));
+        } catch (RegraDeNegocioException esperado) {
+            bloqueou = true;
+        }
+        assertEquals(true, bloqueou, "A mesma pergunta nao pode ser respondida duas vezes.");
     }
 
     private static void assertEquals(Object esperado, Object atual, String mensagem) {
         if (!esperado.equals(atual)) {
             throw new AssertionError(mensagem + " Esperado: " + esperado + ", atual: " + atual);
-        }
-    }
-
-    private static void assertThrows(Runnable acao, String mensagem) {
-        try {
-            acao.run();
-            throw new AssertionError(mensagem);
-        } catch (RuntimeException esperado) {
-            // A excecao confirma a protecao contra respostas duplicadas.
         }
     }
 }

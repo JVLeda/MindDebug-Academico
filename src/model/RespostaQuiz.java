@@ -1,5 +1,7 @@
 package model;
 
+import excecao.RegraDeNegocioException;
+
 public class RespostaQuiz extends Entidade {
     private PerguntaQuiz pergunta;
     private AlternativaQuiz alternativa;
@@ -21,7 +23,7 @@ public class RespostaQuiz extends Entidade {
 
     private static void validar(PerguntaQuiz pergunta, AlternativaQuiz alternativa) {
         if (pergunta == null || alternativa == null || !pergunta.getAlternativas().contains(alternativa)) {
-            throw new RuntimeException("Alternativa nao pertence a pergunta");
+            throw new RegraDeNegocioException("Alternativa nao pertence a pergunta");
         }
     }
 

@@ -2,7 +2,7 @@
 
 ## Precondicoes
 
-- MySQL ativo em `localhost:3307` com o banco definido pela propriedade `minddebug.banco`.
+- MySQL ativo, iniciado com `docker compose up -d` (`localhost:3306`, banco `minddebug`), conforme `docs/AMBIENTE_LOCAL.md`.
 - Projeto compilado com `src/lib/mysql-connector-j-9.3.0.jar`.
 - Base nova ou base compativel com o esquema atual.
 

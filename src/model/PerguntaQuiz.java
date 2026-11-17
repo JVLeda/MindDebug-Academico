@@ -1,5 +1,7 @@
 package model;
 
+import excecao.DadoInvalidoException;
+import excecao.RegraDeNegocioException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -16,13 +18,13 @@ public class PerguntaQuiz extends Entidade {
 
     public void adicionarAlternativa(AlternativaQuiz alternativa) {
         if (alternativa == null) {
-            throw new RuntimeException("Alternativa obrigatoria");
+            throw new DadoInvalidoException("Alternativa obrigatoria");
         }
         if (alternativas.size() == 4) {
-            throw new RuntimeException("A pergunta deve possuir exatamente quatro alternativas");
+            throw new RegraDeNegocioException("A pergunta deve possuir exatamente quatro alternativas");
         }
         if (alternativa.isCorreta() && getAlternativaCorreta() != null) {
-            throw new RuntimeException("A pergunta deve possuir somente uma alternativa correta");
+            throw new RegraDeNegocioException("A pergunta deve possuir somente uma alternativa correta");
         }
         alternativas.add(alternativa);
     }

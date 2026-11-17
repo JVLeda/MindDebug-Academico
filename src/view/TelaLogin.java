@@ -1,6 +1,7 @@
 package view;
 
 import model.Curso;
+import model.Usuario;
 
 import javax.swing.*;
 import java.awt.*;
@@ -44,7 +45,11 @@ public class TelaLogin extends JPanel {
         janela.adicionarComponente(caixa, gbc, 6, acessos);
 
         entrar.addActionListener(e -> janela.tentar(() -> {
-            janela.setUsuarioLogado(janela.getController().fazerLogin(campoUsuario.getText(), new String(campoSenha.getPassword())));
+            Usuario usuario = janela.getController().fazerLogin(campoUsuario.getText(), new String(campoSenha.getPassword()));
+            if (usuario.isTrocaDeSenhaObrigatoria() && !trocarSenhaNoPrimeiroAcesso(usuario)) {
+                return;
+            }
+            janela.setUsuarioLogado(usuario);
             if (janela.getUsuarioLogado().getNivel() == 4) {
                 janela.mostrarPainelAdministrador();
             } else {
@@ -56,6 +61,19 @@ public class TelaLogin extends JPanel {
         esqueciSenha.addActionListener(e -> JOptionPane.showMessageDialog(janela, "Procure o Administrador do Sistema para redefinir sua senha."));
 
         add(caixa);
+    }
+
+    /** Conta criada pelo administrador ou com senha redefinida: o usuario define a propria senha antes de entrar. */
+    private boolean trocarSenhaNoPrimeiroAcesso(Usuario usuario) {
+        JPasswordField novaSenha = new JPasswordField(18);
+        Object[] conteudo = {"Primeiro acesso: defina uma nova senha.", novaSenha};
+        int resposta = JOptionPane.showConfirmDialog(janela, conteudo, "Trocar senha", JOptionPane.OK_CANCEL_OPTION);
+        if (resposta != JOptionPane.OK_OPTION) {
+            return false;
+        }
+        janela.getController().alterarMinhaSenha(usuario, new String(novaSenha.getPassword()));
+        JOptionPane.showMessageDialog(janela, "Senha alterada.");
+        return true;
     }
 
     private void abrirCadastroAluno() {

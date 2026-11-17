@@ -111,7 +111,7 @@ public class PainelDisciplinas extends JPanel {
             if (periodo == null || materia == null) {
                 throw new RuntimeException("Escolha uma disciplina.");
             }
-            periodo.removerMateria(materia);
+            janela.getController().removerMateria(janela.getUsuarioLogado(), periodo, materia);
             atualizarMaterias.run();
         }));
 

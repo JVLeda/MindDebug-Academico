@@ -15,7 +15,6 @@ public class PainelAdministrador extends JPanel {
     private JMenuItem itemUsuarios;
     private JMenuItem itemSenhas;
     private JMenuItem itemAcessarMateria;
-    private JMenuItem itemSalvar;
     private JMenuItem itemTrocarSenha;
     private JMenuItem itemSair;
     private JMenuItem itemSobre;
@@ -43,7 +42,6 @@ public class PainelAdministrador extends JPanel {
         itemUsuarios = item("Usuarios", 'U');
         itemSenhas = item("Senhas", 'N');
         itemAcessarMateria = item("Acessar materia", 'M');
-        itemSalvar = item("Salvar", 'V');
         itemTrocarSenha = item("Trocar minha senha", 'T');
         itemSair = item("Sair", 'R');
         itemSobre = item("Sobre", 'B');
@@ -53,7 +51,6 @@ public class PainelAdministrador extends JPanel {
         menuCadastros.add(itemUsuarios);
         menuCadastros.add(itemSenhas);
         menuSistema.add(itemAcessarMateria);
-        menuSistema.add(itemSalvar);
         menuSistema.add(itemTrocarSenha);
         menuSistema.addSeparator();
         menuSistema.add(itemSair);
@@ -105,8 +102,6 @@ public class PainelAdministrador extends JPanel {
                 mostrarConteudo("Redefinicao de senhas", new ModuloSenhasAdministrador(janela));
             } else if (origem == itemAcessarMateria) {
                 janela.mostrarNavegacao();
-            } else if (origem == itemSalvar) {
-                janela.salvarDados();
             } else if (origem == itemTrocarSenha) {
                 janela.trocarSenha();
             } else if (origem == itemSair) {

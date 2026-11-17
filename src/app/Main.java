@@ -7,14 +7,17 @@ import view.JanelaMindDebug;
 
 import javax.swing.SwingUtilities;
 
-public class Main {
+public class Main implements Runnable {
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            BancoDao bancoDao = new BancoDao();
-            BancoDados banco = bancoDao.carregar();
-            MindDebugController controller = new MindDebugController(banco);
-            JanelaMindDebug janela = new JanelaMindDebug(controller);
-            janela.setVisible(true);
-        });
+        SwingUtilities.invokeLater(new Main());
+    }
+
+    @Override
+    public void run() {
+        BancoDao bancoDao = new BancoDao();
+        BancoDados banco = bancoDao.carregar();
+        MindDebugController controller = new MindDebugController(banco);
+        JanelaMindDebug janela = new JanelaMindDebug(controller);
+        janela.setVisible(true);
     }
 }

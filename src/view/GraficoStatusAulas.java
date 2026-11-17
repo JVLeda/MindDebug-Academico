@@ -24,8 +24,8 @@ public class GraficoStatusAulas extends JPanel {
 
         int critico = contar("Critico");
         int regular = contar("Regular");
-        int dominio = contar("Dominio total");
-        int semResposta = contar("Sem Respostas");
+        int dominio = contar("Satisfatorio");
+        int semResposta = contar("Sem dados");
         int total = aulas.size();
 
         if (total == 0) {
@@ -47,8 +47,8 @@ public class GraficoStatusAulas extends JPanel {
         int legendaY = 45;
         desenharLegenda(grafico, legendaX, legendaY, "Critico", critico, new Color(210, 67, 67));
         desenharLegenda(grafico, legendaX, legendaY + 28, "Regular", regular, new Color(231, 176, 64));
-        desenharLegenda(grafico, legendaX, legendaY + 56, "Dominio", dominio, new Color(64, 150, 96));
-        desenharLegenda(grafico, legendaX, legendaY + 84, "Sem resposta", semResposta, new Color(150, 150, 150));
+        desenharLegenda(grafico, legendaX, legendaY + 56, "Satisfatorio", dominio, new Color(64, 150, 96));
+        desenharLegenda(grafico, legendaX, legendaY + 84, "Sem dados", semResposta, new Color(150, 150, 150));
     }
 
     private int contar(String status) {

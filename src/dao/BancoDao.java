@@ -1,1417 +1,388 @@
 package dao;
 
+import excecao.PersistenciaException;
+import excecao.RegraDeNegocioException;
 import model.Aula;
 import model.Chat;
 import model.Curso;
-import model.Administrador;
 import model.Estudante;
 import model.Feedback;
 import model.GrupoEstudo;
+import model.HorarioMonitor;
 import model.Materia;
 import model.Material;
-import model.Mensagem;
 import model.Monitor;
 import model.PedidoMonitoria;
 import model.Periodo;
-import model.PerguntaQuiz;
 import model.Professor;
-import model.Quiz;
-import model.RespostaQuiz;
-import model.TentativaQuiz;
 import model.Usuario;
-import model.AlternativaQuiz;
 import util.Conexao;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 
-public class BancoDao {
-    public static String mensagemDeConexaoIndisponivel(String detalhe) {
-        return "Nao foi possivel conectar ao MySQL em localhost:3307. "
-                + "Confirme se o servico esta ativo e se o banco configurado existe. Detalhe: " + detalhe;
+/**
+ * Cria as tabelas que faltam, carrega todos os dados do MindDebug ao abrir o sistema
+ * e grava os dados iniciais na primeira vez. Depois disso, cada operacao e gravada
+ * pelo DAO da tabela, chamado pelo controller.
+ */
+public class BancoDao extends AcessoBanco {
+
+    private HashMap<Integer, Estudante> estudantesPorId = new HashMap<>();
+    private HashMap<Integer, Monitor> monitoresPorId = new HashMap<>();
+    private HashMap<Integer, Professor> professoresPorId = new HashMap<>();
+    private UsuarioDao usuarioDao = new UsuarioDao();
+    private CursoDao cursoDao = new CursoDao();
+    private PeriodoDao periodoDao = new PeriodoDao();
+    private MateriaDao materiaDao = new MateriaDao();
+    private ParticipanteDao participanteDao = new ParticipanteDao();
+    private AulaDao aulaDao = new AulaDao();
+    private HorarioMonitorDao horarioMonitorDao = new HorarioMonitorDao();
+    private FeedbackDao feedbackDao = new FeedbackDao();
+    private MaterialDao materialDao = new MaterialDao();
+    private ChatDao chatDao = new ChatDao();
+    private GrupoEstudoDao grupoEstudoDao = new GrupoEstudoDao();
+    private PedidoMonitoriaDao pedidoMonitoriaDao = new PedidoMonitoriaDao();
+    private QuizDao quizDao = new QuizDao();
+
+    public static String mensagemDeEsquemaAntigo() {
+        return "O banco " + Conexao.descricao() + " ainda tem as tabelas da versao anterior do MindDebug. "
+                + "Apague essas tabelas e abra o sistema de novo para criar as tabelas atuais "
+                + "(veja docs/AMBIENTE_LOCAL.md).";
     }
+
+    // ------------------------------------------------------------------ carregar
 
     public BancoDados carregar() {
-        criarTabelas();
-
-        BancoDados banco = new BancoDados();
-        HashMap<Integer, Curso> cursos = carregarCursos(banco);
-        HashMap<Integer, Usuario> usuarios = carregarUsuarios(banco, cursos);
-        HashMap<Integer, Periodo> periodos = carregarPeriodos(cursos);
-        HashMap<Integer, Materia> materias = carregarMaterias(periodos, usuarios);
-        HashMap<Integer, Aula> aulas = carregarAulas(materias);
-        HashMap<Integer, Quiz> quizzes = carregarQuizzes(aulas);
-        HashMap<Integer, Quiz> quizzesDasPerguntas = new HashMap<>();
-        HashMap<Integer, PerguntaQuiz> perguntas = carregarPerguntasQuiz(quizzes, quizzesDasPerguntas);
-        HashMap<Integer, AlternativaQuiz> alternativas = carregarAlternativasQuiz(perguntas, quizzesDasPerguntas);
-        HashMap<Integer, TentativaQuiz> tentativas = carregarTentativasQuiz(quizzes, usuarios);
-        carregarRespostasQuiz(tentativas, perguntas, alternativas);
-        HashMap<Integer, GrupoEstudo> grupos = carregarGrupos(materias, aulas, usuarios);
-
-        carregarParticipantes(materias, usuarios);
-        carregarFeedbacks(aulas, usuarios);
-        carregarMateriais(materias, usuarios);
-        carregarMensagens(materias, aulas, usuarios);
-        carregarAlunosDosGrupos(grupos, usuarios);
-        carregarMonitoresDosGrupos(grupos, usuarios);
-        carregarPedidosMonitoria(materias, aulas, usuarios);
-        ajustarProximoId(banco);
-
-        return banco;
-    }
-
-    public void salvar(BancoDados banco) {
-        criarTabelas();
-        limparTabelas();
-        salvarCursos(banco);
-        salvarUsuarios(banco);
-        salvarPeriodos(banco);
-        salvarMaterias(banco);
-        salvarParticipantes(banco);
-        salvarAulas(banco);
-        salvarQuizzes(banco);
-        salvarPerguntasQuiz(banco);
-        salvarAlternativasQuiz(banco);
-        salvarTentativasQuiz(banco);
-        salvarRespostasQuiz(banco);
-        salvarFeedbacks(banco);
-        salvarMateriais(banco);
-        salvarMensagens(banco);
-        salvarGrupos(banco);
-        salvarAlunosDosGrupos(banco);
-        salvarMonitoresDosGrupos(banco);
-        salvarPedidosMonitoria(banco);
-    }
-
-    private void criarTabelas() {
+        Connection conexao = abrirConexao();
         try {
-            Connection conexao = Conexao.getConnection();
-            Statement comando = conexao.createStatement();
+            criarTabelas(conexao);
 
-            for (String comandoSql : EsquemaBanco.comandosDeCriacao()) {
-                comando.executeUpdate(comandoSql);
-            }
+            BancoDados banco = new BancoDados();
+            HashMap<Integer, Curso> cursos = carregarCursos(conexao, banco);
+            HashMap<Integer, Usuario> usuarios = carregarUsuarios(conexao, banco, cursos);
+            separarUsuariosPorPerfil(banco);
+            HashMap<Integer, Periodo> periodos = carregarPeriodos(conexao, cursos);
+            HashMap<Integer, Materia> materias = carregarMaterias(conexao, periodos);
+            HashMap<Integer, Aula> aulas = aulaDao.listar(conexao, materias);
 
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException(mensagemDeConexaoIndisponivel(erro.getMessage()));
+            carregarParticipantes(conexao, materias, usuarios);
+            horarioMonitorDao.listar(conexao, materias, monitoresPorId);
+            feedbackDao.listar(conexao, aulas, estudantesPorId);
+            materialDao.listar(conexao, materias, usuarios);
+            HashMap<Integer, Chat> chats = chatDao.listarChats(conexao, materias, aulas);
+            chatDao.listarMensagens(conexao, chats, usuarios);
+            grupoEstudoDao.listar(conexao, materias, aulas, estudantesPorId, monitoresPorId);
+            pedidoMonitoriaDao.listar(conexao, materias, aulas, estudantesPorId, monitoresPorId);
+            quizDao.listar(conexao, aulas, estudantesPorId);
+
+            return banco;
+        } catch (SQLException erro) {
+            throw new PersistenciaException("Erro ao carregar os dados: " + erro.getMessage());
+        } finally {
+            fechar(conexao);
         }
     }
 
-    private void limparTabelas() {
-        try {
-            Connection conexao = Conexao.getConnection();
-            Statement comando = conexao.createStatement();
-
-            comando.executeUpdate("DELETE FROM respostas_quiz");
-            comando.executeUpdate("DELETE FROM tentativas_quiz");
-            comando.executeUpdate("DELETE FROM alternativas_quiz");
-            comando.executeUpdate("DELETE FROM perguntas_quiz");
-            comando.executeUpdate("DELETE FROM quizzes");
-            comando.executeUpdate("DELETE FROM grupos_estudo_alunos");
-            comando.executeUpdate("DELETE FROM grupos_estudo_monitores");
-            comando.executeUpdate("DELETE FROM pedidos_monitoria");
-            comando.executeUpdate("DELETE FROM grupos_estudo");
-            comando.executeUpdate("DELETE FROM mensagens");
-            comando.executeUpdate("DELETE FROM materiais");
-            comando.executeUpdate("DELETE FROM feedbacks");
-            comando.executeUpdate("DELETE FROM aulas");
-            comando.executeUpdate("DELETE FROM participantes");
-            comando.executeUpdate("DELETE FROM materias");
-            comando.executeUpdate("DELETE FROM periodos");
-            comando.executeUpdate("DELETE FROM usuarios");
-            comando.executeUpdate("DELETE FROM cursos");
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException(mensagemDeConexaoIndisponivel(erro.getMessage()));
-        }
-    }
-
-    private HashMap<Integer, Curso> carregarCursos(BancoDados banco) {
+    private HashMap<Integer, Curso> carregarCursos(Connection conexao, BancoDados banco) throws SQLException {
         HashMap<Integer, Curso> mapa = new HashMap<>();
-
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM cursos");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Curso curso = new Curso(
-                        resultado.getString("nome"),
-                        resultado.getString("sigla"),
-                        resultado.getString("area"),
-                        resultado.getInt("carga_horaria"),
-                        resultado.getString("coordenador")
-                );
-                curso.setId(resultado.getInt("id"));
-                banco.getCursos().add(curso);
-                mapa.put(curso.getId(), curso);
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar cursos: " + erro.getMessage());
+        for (Curso curso : cursoDao.listar(conexao)) {
+            banco.getCursos().add(curso);
+            mapa.put(curso.getId(), curso);
         }
-
         return mapa;
     }
 
-    private HashMap<Integer, Usuario> carregarUsuarios(BancoDados banco, HashMap<Integer, Curso> cursos) {
+    private HashMap<Integer, Usuario> carregarUsuarios(Connection conexao, BancoDados banco,
+            HashMap<Integer, Curso> cursos) throws SQLException {
         HashMap<Integer, Usuario> mapa = new HashMap<>();
-
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM usuarios");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                String cargo = resultado.getString("cargo");
-                Usuario usuario;
-
-                if ("Dev".equals(cargo) || "Administrador do Sistema".equals(cargo)) {
-                    usuario = new Administrador(
-                            resultado.getString("nome"),
-                            resultado.getString("login"),
-                            resultado.getString("email"),
-                            resultado.getString("senha")
-                    );
-                } else if ("Docente".equals(cargo)) {
-                    usuario = new Professor(
-                            resultado.getString("nome"),
-                            resultado.getString("login"),
-                            resultado.getString("email"),
-                            resultado.getString("senha")
-                    );
-                } else if ("Monitor".equals(cargo)) {
-                    usuario = new Monitor(
-                            resultado.getString("nome"),
-                            resultado.getString("login"),
-                            resultado.getString("email"),
-                            resultado.getString("senha"),
-                            resultado.getString("tipo_monitor")
-                    );
-                } else {
-                    Curso curso = cursos.get(resultado.getInt("curso_id"));
-                    usuario = new Estudante(
-                            resultado.getString("nome"),
-                            resultado.getString("email"),
-                            resultado.getString("matricula"),
-                            resultado.getString("senha"),
-                            curso
-                    );
-                }
-
-                usuario.setId(resultado.getInt("id"));
-                banco.getUsuarios().add(usuario);
-                mapa.put(usuario.getId(), usuario);
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar usuarios: " + erro.getMessage());
+        for (Usuario usuario : usuarioDao.listar(conexao, cursos)) {
+            banco.getUsuarios().add(usuario);
+            mapa.put(usuario.getId(), usuario);
         }
-
         return mapa;
     }
 
-    private HashMap<Integer, Periodo> carregarPeriodos(HashMap<Integer, Curso> cursos) {
-        HashMap<Integer, Periodo> mapa = new HashMap<>();
-
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM periodos");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Periodo periodo = new Periodo(resultado.getInt("numero"), resultado.getString("nome"));
-                periodo.setId(resultado.getInt("id"));
-
-                Curso curso = cursos.get(resultado.getInt("curso_id"));
-                if (curso != null) {
-                    curso.adicionarPeriodo(periodo);
-                    mapa.put(periodo.getId(), periodo);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar periodos: " + erro.getMessage());
-        }
-
-        return mapa;
-    }
-
-    private HashMap<Integer, Materia> carregarMaterias(HashMap<Integer, Periodo> periodos, HashMap<Integer, Usuario> usuarios) {
-        HashMap<Integer, Materia> mapa = new HashMap<>();
-
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM materias");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Usuario usuario = usuarios.get(resultado.getInt("professor_id"));
-                Professor professor = usuario instanceof Professor ? (Professor) usuario : null;
-                Materia materia = new Materia(resultado.getString("nome"), professor);
-                materia.setId(resultado.getInt("id"));
-
-                Periodo periodo = periodos.get(resultado.getInt("periodo_id"));
-                if (periodo != null) {
-                    periodo.adicionarMateria(materia);
-                    mapa.put(materia.getId(), materia);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar materias: " + erro.getMessage());
-        }
-
-        return mapa;
-    }
-
-    private HashMap<Integer, Aula> carregarAulas(HashMap<Integer, Materia> materias) {
-        HashMap<Integer, Aula> mapa = new HashMap<>();
-
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM aulas");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Aula aula = new Aula(
-                        resultado.getString("titulo"),
-                        resultado.getString("data_aula"),
-                        resultado.getString("objetivo")
-                );
-                aula.setId(resultado.getInt("id"));
-
-                Materia materia = materias.get(resultado.getInt("materia_id"));
-                if (materia != null) {
-                    materia.adicionarAula(aula);
-                    mapa.put(aula.getId(), aula);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar aulas: " + erro.getMessage());
-        }
-
-        return mapa;
-    }
-
-    private HashMap<Integer, Quiz> carregarQuizzes(HashMap<Integer, Aula> aulas) {
-        HashMap<Integer, Quiz> mapa = new LinkedHashMap<>();
-
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM quizzes ORDER BY id");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Aula aula = aulas.get(resultado.getInt("aula_id"));
-                if (aula != null) {
-                    Quiz quiz = new Quiz(resultado.getString("titulo"), resultado.getString("descricao"));
-                    quiz.setId(resultado.getInt("id"));
-                    quiz.setAula(aula);
-                    aula.setQuiz(quiz);
-                    mapa.put(quiz.getId(), quiz);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar quizzes: " + erro.getMessage());
-        }
-
-        return mapa;
-    }
-
-    private HashMap<Integer, PerguntaQuiz> carregarPerguntasQuiz(HashMap<Integer, Quiz> quizzes,
-            HashMap<Integer, Quiz> quizzesDasPerguntas) {
-        HashMap<Integer, PerguntaQuiz> mapa = new LinkedHashMap<>();
-
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM perguntas_quiz ORDER BY id");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Quiz quiz = quizzes.get(resultado.getInt("quiz_id"));
-                if (quiz != null) {
-                    PerguntaQuiz pergunta = new PerguntaQuiz(
-                            resultado.getString("enunciado"),
-                            resultado.getString("dificuldade")
-                    );
-                    pergunta.setId(resultado.getInt("id"));
-                    mapa.put(pergunta.getId(), pergunta);
-                    quizzesDasPerguntas.put(pergunta.getId(), quiz);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar perguntas do quiz: " + erro.getMessage());
-        }
-
-        return mapa;
-    }
-
-    private HashMap<Integer, AlternativaQuiz> carregarAlternativasQuiz(
-            HashMap<Integer, PerguntaQuiz> perguntas, HashMap<Integer, Quiz> quizzesDasPerguntas) {
-        HashMap<Integer, AlternativaQuiz> mapa = new LinkedHashMap<>();
-
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM alternativas_quiz ORDER BY id");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                PerguntaQuiz pergunta = perguntas.get(resultado.getInt("pergunta_id"));
-                if (pergunta != null) {
-                    AlternativaQuiz alternativa = new AlternativaQuiz(
-                            resultado.getString("texto"),
-                            resultado.getString("explicacao"),
-                            resultado.getBoolean("correta")
-                    );
-                    alternativa.setId(resultado.getInt("id"));
-                    pergunta.adicionarAlternativa(alternativa);
-                    mapa.put(alternativa.getId(), alternativa);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-
-            for (Integer perguntaId : perguntas.keySet()) {
-                Quiz quiz = quizzesDasPerguntas.get(perguntaId);
-                if (quiz != null) {
-                    quiz.adicionarPergunta(perguntas.get(perguntaId));
-                }
-            }
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar alternativas do quiz: " + erro.getMessage());
-        }
-
-        return mapa;
-    }
-
-    private HashMap<Integer, TentativaQuiz> carregarTentativasQuiz(HashMap<Integer, Quiz> quizzes,
-            HashMap<Integer, Usuario> usuarios) {
-        HashMap<Integer, TentativaQuiz> mapa = new LinkedHashMap<>();
-
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM tentativas_quiz ORDER BY id");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Quiz quiz = quizzes.get(resultado.getInt("quiz_id"));
-                Usuario usuario = usuarios.get(resultado.getInt("estudante_id"));
-                if (quiz != null && usuario instanceof Estudante) {
-                    TentativaQuiz tentativa = TentativaQuiz.restaurar(
-                            (Estudante) usuario,
-                            quiz,
-                            resultado.getInt("acertos"),
-                            resultado.getInt("total_perguntas")
-                    );
-                    tentativa.setId(resultado.getInt("id"));
-                    tentativa.setDataTentativa(resultado.getString("data_tentativa"));
-                    quiz.adicionarTentativa(tentativa);
-                    mapa.put(tentativa.getId(), tentativa);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar tentativas do quiz: " + erro.getMessage());
-        }
-
-        return mapa;
-    }
-
-    private void carregarRespostasQuiz(HashMap<Integer, TentativaQuiz> tentativas,
-            HashMap<Integer, PerguntaQuiz> perguntas, HashMap<Integer, AlternativaQuiz> alternativas) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM respostas_quiz ORDER BY id");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                TentativaQuiz tentativa = tentativas.get(resultado.getInt("tentativa_id"));
-                PerguntaQuiz pergunta = perguntas.get(resultado.getInt("pergunta_id"));
-                AlternativaQuiz alternativa = alternativas.get(resultado.getInt("alternativa_id"));
-                if (tentativa != null && pergunta != null && alternativa != null) {
-                    RespostaQuiz resposta = RespostaQuiz.restaurar(
-                            pergunta,
-                            alternativa,
-                            resultado.getBoolean("acertou")
-                    );
-                    resposta.setId(resultado.getInt("id"));
-                    tentativa.adicionarResposta(resposta);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar respostas do quiz: " + erro.getMessage());
-        }
-    }
-
-    private HashMap<Integer, GrupoEstudo> carregarGrupos(HashMap<Integer, Materia> materias, HashMap<Integer, Aula> aulas, HashMap<Integer, Usuario> usuarios) {
-        HashMap<Integer, GrupoEstudo> mapa = new HashMap<>();
-
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM grupos_estudo");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Materia materia = materias.get(resultado.getInt("materia_id"));
-                if (materia == null) {
-                    continue;
-                }
-
-                Aula aula = aulas.get(resultado.getInt("aula_id"));
-                Usuario usuario = usuarios.get(resultado.getInt("monitor_id"));
-                Monitor monitor = usuario instanceof Monitor ? (Monitor) usuario : null;
-
-                GrupoEstudo grupo = new GrupoEstudo(resultado.getString("nome"), aula, monitor);
-                grupo.setId(resultado.getInt("id"));
-                materia.adicionarGrupo(grupo);
-                mapa.put(grupo.getId(), grupo);
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar grupos de estudo: " + erro.getMessage());
-        }
-
-        return mapa;
-    }
-
-    private void carregarParticipantes(HashMap<Integer, Materia> materias, HashMap<Integer, Usuario> usuarios) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM participantes");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Materia materia = materias.get(resultado.getInt("materia_id"));
-                Usuario usuario = usuarios.get(resultado.getInt("usuario_id"));
-                if (materia != null && usuario != null) {
-                    materia.adicionarParticipante(usuario);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar participantes: " + erro.getMessage());
-        }
-    }
-
-    private void carregarFeedbacks(HashMap<Integer, Aula> aulas, HashMap<Integer, Usuario> usuarios) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM feedbacks");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Aula aula = aulas.get(resultado.getInt("aula_id"));
-                Usuario usuario = usuarios.get(resultado.getInt("estudante_id"));
-                if (aula != null && usuario instanceof Estudante) {
-                    Feedback feedback = new Feedback(
-                            (Estudante) usuario,
-                            resultado.getInt("nota"),
-                            resultado.getString("comentario")
-                    );
-                    feedback.setId(resultado.getInt("id"));
-                    aula.registrarFeedback(feedback);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar feedbacks: " + erro.getMessage());
-        }
-    }
-
-    private void carregarMateriais(HashMap<Integer, Materia> materias, HashMap<Integer, Usuario> usuarios) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM materiais");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Materia materia = materias.get(resultado.getInt("materia_id"));
-                Usuario autor = usuarios.get(resultado.getInt("autor_id"));
-                if (materia != null && autor != null) {
-                    Material material = new Material(
-                            resultado.getString("titulo"),
-                            resultado.getString("tipo"),
-                            resultado.getString("referencia"),
-                            autor
-                    );
-                    material.setId(resultado.getInt("id"));
-                    materia.adicionarMaterial(material);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar materiais: " + erro.getMessage());
-        }
-    }
-
-    private void carregarMensagens(HashMap<Integer, Materia> materias, HashMap<Integer, Aula> aulas, HashMap<Integer, Usuario> usuarios) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM mensagens");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Usuario autor = usuarios.get(resultado.getInt("autor_id"));
-                if (autor == null) {
-                    continue;
-                }
-
-                String origem = resultado.getString("origem");
-                int origemId = resultado.getInt("origem_id");
-                String texto = resultado.getString("texto");
-                Mensagem mensagem = null;
-
-                if ("GERAL".equals(origem)) {
-                    Materia materia = materias.get(origemId);
-                    if (materia != null) {
-                        mensagem = materia.getChatGeral().enviar(autor, texto);
-                    }
-                } else if ("EQUIPE".equals(origem)) {
-                    Materia materia = materias.get(origemId);
-                    if (materia != null) {
-                        mensagem = materia.getChatEquipe().enviar(autor, texto);
-                    }
-                } else if ("AULA".equals(origem)) {
-                    Aula aula = aulas.get(origemId);
-                    if (aula != null) {
-                        mensagem = aula.getChat().enviar(autor, texto);
-                    }
-                }
-
-                if (mensagem != null) {
-                    mensagem.setId(resultado.getInt("id"));
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar mensagens: " + erro.getMessage());
-        }
-    }
-
-    private void carregarAlunosDosGrupos(HashMap<Integer, GrupoEstudo> grupos, HashMap<Integer, Usuario> usuarios) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM grupos_estudo_alunos");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                GrupoEstudo grupo = grupos.get(resultado.getInt("grupo_id"));
-                Usuario usuario = usuarios.get(resultado.getInt("estudante_id"));
-                if (grupo != null && usuario instanceof Estudante) {
-                    grupo.adicionarEstudante((Estudante) usuario);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar alunos dos grupos: " + erro.getMessage());
-        }
-    }
-
-    private void carregarMonitoresDosGrupos(HashMap<Integer, GrupoEstudo> grupos, HashMap<Integer, Usuario> usuarios) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM grupos_estudo_monitores");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                GrupoEstudo grupo = grupos.get(resultado.getInt("grupo_id"));
-                Usuario usuario = usuarios.get(resultado.getInt("monitor_id"));
-                if (grupo != null && usuario instanceof Monitor) {
-                    grupo.adicionarMonitor((Monitor) usuario);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar monitores dos grupos: " + erro.getMessage());
-        }
-    }
-
-    private void carregarPedidosMonitoria(HashMap<Integer, Materia> materias, HashMap<Integer, Aula> aulas, HashMap<Integer, Usuario> usuarios) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement("SELECT * FROM pedidos_monitoria");
-            ResultSet resultado = comando.executeQuery();
-
-            while (resultado.next()) {
-                Materia materia = materias.get(resultado.getInt("materia_id"));
-                Usuario usuarioEstudante = usuarios.get(resultado.getInt("estudante_id"));
-                Usuario usuarioMonitor = usuarios.get(resultado.getInt("monitor_id"));
-                Aula aula = aulas.get(resultado.getInt("aula_id"));
-
-                if (materia != null && usuarioEstudante instanceof Estudante) {
-                    Monitor monitor = usuarioMonitor instanceof Monitor ? (Monitor) usuarioMonitor : null;
-                    PedidoMonitoria pedido = new PedidoMonitoria(
-                            (Estudante) usuarioEstudante,
-                            aula,
-                            monitor,
-                            resultado.getString("duvida"),
-                            resultado.getString("data_monitoria"),
-                            resultado.getString("horario")
-                    );
-                    pedido.setId(resultado.getInt("id"));
-
-                    String status = resultado.getString("status");
-                    if ("Aceito".equals(status)) {
-                        pedido.aceitar(monitor);
-                    } else if ("Recusado".equals(status)) {
-                        pedido.recusar();
-                    }
-
-                    materia.adicionarPedidoMonitoria(pedido);
-                }
-            }
-
-            resultado.close();
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao carregar pedidos de monitoria: " + erro.getMessage());
-        }
-    }
-
-    private void salvarCursos(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO cursos (id, nome, sigla, area, carga_horaria, coordenador) VALUES (?, ?, ?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                comando.setInt(1, curso.getId());
-                comando.setString(2, curso.getNome());
-                comando.setString(3, curso.getSigla());
-                comando.setString(4, curso.getArea());
-                comando.setInt(5, curso.getCargaHoraria());
-                comando.setString(6, curso.getCoordenador());
-                comando.executeUpdate();
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar cursos: " + erro.getMessage());
-        }
-    }
-
-    private void salvarUsuarios(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO usuarios (id, nome, login, email, senha, cargo, tipo_monitor, matricula, curso_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            );
-
-            for (Usuario usuario : banco.getUsuarios()) {
-                comando.setInt(1, usuario.getId());
-                comando.setString(2, usuario.getNome());
-                comando.setString(3, usuario.getLogin());
-                comando.setString(4, usuario.getEmail());
-                comando.setString(5, usuario.getSenha());
-                comando.setString(6, usuario.getCargo());
-
-                if (usuario instanceof Monitor) {
-                    comando.setString(7, ((Monitor) usuario).getTipo());
-                } else {
-                    comando.setString(7, null);
-                }
-
-                if (usuario instanceof Estudante) {
-                    Estudante estudante = (Estudante) usuario;
-                    comando.setString(8, estudante.getMatricula());
-                    if (estudante.getCurso() == null) {
-                        comando.setObject(9, null);
-                    } else {
-                        comando.setInt(9, estudante.getCurso().getId());
-                    }
-                } else {
-                    comando.setString(8, null);
-                    comando.setObject(9, null);
-                }
-
-                comando.executeUpdate();
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar usuarios: " + erro.getMessage());
-        }
-    }
-
-    private void salvarPeriodos(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO periodos (id, curso_id, numero, nome) VALUES (?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    comando.setInt(1, periodo.getId());
-                    comando.setInt(2, curso.getId());
-                    comando.setInt(3, periodo.getNumero());
-                    comando.setString(4, periodo.getNome());
-                    comando.executeUpdate();
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar periodos: " + erro.getMessage());
-        }
-    }
-
-    private void salvarMaterias(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO materias (id, periodo_id, nome, professor_id) VALUES (?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        comando.setInt(1, materia.getId());
-                        comando.setInt(2, periodo.getId());
-                        comando.setString(3, materia.getNome());
-                        if (materia.getProfessor() == null) {
-                            comando.setObject(4, null);
-                        } else {
-                            comando.setInt(4, materia.getProfessor().getId());
-                        }
-                        comando.executeUpdate();
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar materias: " + erro.getMessage());
-        }
-    }
-
-    private void salvarParticipantes(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO participantes (materia_id, usuario_id) VALUES (?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (Estudante estudante : materia.getEstudantes()) {
-                            comando.setInt(1, materia.getId());
-                            comando.setInt(2, estudante.getId());
-                            comando.executeUpdate();
-                        }
-
-                        for (Monitor monitor : materia.getMonitores()) {
-                            comando.setInt(1, materia.getId());
-                            comando.setInt(2, monitor.getId());
-                            comando.executeUpdate();
-                        }
-
-                        if (materia.getProfessor() != null) {
-                            comando.setInt(1, materia.getId());
-                            comando.setInt(2, materia.getProfessor().getId());
-                            comando.executeUpdate();
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar participantes: " + erro.getMessage());
-        }
-    }
-
-    private void salvarAulas(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO aulas (id, materia_id, titulo, data_aula, objetivo) VALUES (?, ?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (Aula aula : materia.getAulas()) {
-                            comando.setInt(1, aula.getId());
-                            comando.setInt(2, materia.getId());
-                            comando.setString(3, aula.getTitulo());
-                            comando.setString(4, aula.getData());
-                            comando.setString(5, aula.getObjetivo());
-                            comando.executeUpdate();
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar aulas: " + erro.getMessage());
-        }
-    }
-
-    private void salvarQuizzes(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO quizzes (id, aula_id, titulo, descricao) VALUES (?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (Aula aula : materia.getAulas()) {
-                            Quiz quiz = aula.getQuiz();
-                            if (quiz != null) {
-                                comando.setInt(1, quiz.getId());
-                                comando.setInt(2, aula.getId());
-                                comando.setString(3, quiz.getTitulo());
-                                comando.setString(4, quiz.getDescricao());
-                                comando.executeUpdate();
-                            }
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar quizzes: " + erro.getMessage());
-        }
-    }
-
-    private void salvarPerguntasQuiz(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO perguntas_quiz (id, quiz_id, enunciado, dificuldade) VALUES (?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (Aula aula : materia.getAulas()) {
-                            Quiz quiz = aula.getQuiz();
-                            if (quiz != null) {
-                                for (PerguntaQuiz pergunta : quiz.getPerguntas()) {
-                                    comando.setInt(1, pergunta.getId());
-                                    comando.setInt(2, quiz.getId());
-                                    comando.setString(3, pergunta.getEnunciado());
-                                    comando.setString(4, pergunta.getDificuldade());
-                                    comando.executeUpdate();
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar perguntas do quiz: " + erro.getMessage());
-        }
-    }
-
-    private void salvarAlternativasQuiz(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO alternativas_quiz (id, pergunta_id, texto, explicacao, correta) VALUES (?, ?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (Aula aula : materia.getAulas()) {
-                            Quiz quiz = aula.getQuiz();
-                            if (quiz != null) {
-                                for (PerguntaQuiz pergunta : quiz.getPerguntas()) {
-                                    for (AlternativaQuiz alternativa : pergunta.getAlternativas()) {
-                                        comando.setInt(1, alternativa.getId());
-                                        comando.setInt(2, pergunta.getId());
-                                        comando.setString(3, alternativa.getTexto());
-                                        comando.setString(4, alternativa.getExplicacao());
-                                        comando.setBoolean(5, alternativa.isCorreta());
-                                        comando.executeUpdate();
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar alternativas do quiz: " + erro.getMessage());
-        }
-    }
-
-    private void salvarTentativasQuiz(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO tentativas_quiz (id, quiz_id, estudante_id, data_tentativa, acertos, total_perguntas) VALUES (?, ?, ?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (Aula aula : materia.getAulas()) {
-                            Quiz quiz = aula.getQuiz();
-                            if (quiz != null) {
-                                for (TentativaQuiz tentativa : quiz.getTentativas()) {
-                                    comando.setInt(1, tentativa.getId());
-                                    comando.setInt(2, quiz.getId());
-                                    comando.setInt(3, tentativa.getEstudante().getId());
-                                    comando.setString(4, tentativa.getDataTentativa());
-                                    comando.setInt(5, tentativa.getAcertos());
-                                    comando.setInt(6, tentativa.getTotalPerguntas());
-                                    comando.executeUpdate();
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar tentativas do quiz: " + erro.getMessage());
-        }
-    }
-
-    private void salvarRespostasQuiz(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO respostas_quiz (id, tentativa_id, pergunta_id, alternativa_id, acertou) VALUES (?, ?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (Aula aula : materia.getAulas()) {
-                            Quiz quiz = aula.getQuiz();
-                            if (quiz != null) {
-                                for (TentativaQuiz tentativa : quiz.getTentativas()) {
-                                    for (RespostaQuiz resposta : tentativa.getRespostas()) {
-                                        comando.setInt(1, resposta.getId());
-                                        comando.setInt(2, tentativa.getId());
-                                        comando.setInt(3, resposta.getPergunta().getId());
-                                        comando.setInt(4, resposta.getAlternativa().getId());
-                                        comando.setBoolean(5, resposta.isAcertou());
-                                        comando.executeUpdate();
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar respostas do quiz: " + erro.getMessage());
-        }
-    }
-
-    private void salvarFeedbacks(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO feedbacks (aula_id, estudante_id, nota, comentario) VALUES (?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (Aula aula : materia.getAulas()) {
-                            for (Feedback feedback : aula.getFeedbacks()) {
-                                comando.setInt(1, aula.getId());
-                                comando.setInt(2, feedback.getEstudante().getId());
-                                comando.setInt(3, feedback.getNota());
-                                comando.setString(4, feedback.getComentario());
-                                comando.executeUpdate();
-                            }
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar feedbacks: " + erro.getMessage());
-        }
-    }
-
-    private void salvarMateriais(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO materiais (id, materia_id, titulo, tipo, referencia, autor_id) VALUES (?, ?, ?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (Material material : materia.getMateriais()) {
-                            comando.setInt(1, material.getId());
-                            comando.setInt(2, materia.getId());
-                            comando.setString(3, material.getTitulo());
-                            comando.setString(4, material.getTipo());
-                            comando.setString(5, material.getReferencia());
-                            comando.setInt(6, material.getAutor().getId());
-                            comando.executeUpdate();
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar materiais: " + erro.getMessage());
-        }
-    }
-
-    private void salvarMensagens(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO mensagens (id, origem, origem_id, autor_id, texto) VALUES (?, ?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        salvarMensagensDoChat(comando, materia.getChatGeral(), "GERAL", materia.getId());
-                        salvarMensagensDoChat(comando, materia.getChatEquipe(), "EQUIPE", materia.getId());
-
-                        for (Aula aula : materia.getAulas()) {
-                            salvarMensagensDoChat(comando, aula.getChat(), "AULA", aula.getId());
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar mensagens: " + erro.getMessage());
-        }
-    }
-
-    private void salvarGrupos(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO grupos_estudo (id, materia_id, nome, aula_id, monitor_id) VALUES (?, ?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (GrupoEstudo grupo : materia.getGrupos()) {
-                            comando.setInt(1, grupo.getId());
-                            comando.setInt(2, materia.getId());
-                            comando.setString(3, grupo.getNome());
-
-                            if (grupo.getAula() == null) {
-                                comando.setObject(4, null);
-                            } else {
-                                comando.setInt(4, grupo.getAula().getId());
-                            }
-
-                            if (grupo.getMonitores().isEmpty()) {
-                                comando.setObject(5, null);
-                            } else {
-                                comando.setInt(5, grupo.getMonitores().get(0).getId());
-                            }
-
-                            comando.executeUpdate();
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar grupos de estudo: " + erro.getMessage());
-        }
-    }
-
-    private void salvarAlunosDosGrupos(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO grupos_estudo_alunos (grupo_id, estudante_id) VALUES (?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (GrupoEstudo grupo : materia.getGrupos()) {
-                            for (Estudante estudante : grupo.getEstudantes()) {
-                                comando.setInt(1, grupo.getId());
-                                comando.setInt(2, estudante.getId());
-                                comando.executeUpdate();
-                            }
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar alunos dos grupos: " + erro.getMessage());
-        }
-    }
-
-    private void salvarMonitoresDosGrupos(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO grupos_estudo_monitores (grupo_id, monitor_id) VALUES (?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (GrupoEstudo grupo : materia.getGrupos()) {
-                            for (Monitor monitor : grupo.getMonitores()) {
-                                comando.setInt(1, grupo.getId());
-                                comando.setInt(2, monitor.getId());
-                                comando.executeUpdate();
-                            }
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar monitores dos grupos: " + erro.getMessage());
-        }
-    }
-
-    private void salvarPedidosMonitoria(BancoDados banco) {
-        try {
-            Connection conexao = Conexao.getConnection();
-            PreparedStatement comando = conexao.prepareStatement(
-                    "INSERT INTO pedidos_monitoria (id, materia_id, estudante_id, aula_id, monitor_id, duvida, status, data_monitoria, horario) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            );
-
-            for (Curso curso : banco.getCursos()) {
-                for (Periodo periodo : curso.getPeriodos()) {
-                    for (Materia materia : periodo.getMaterias()) {
-                        for (PedidoMonitoria pedido : materia.getPedidosMonitoria()) {
-                            comando.setInt(1, pedido.getId());
-                            comando.setInt(2, materia.getId());
-                            comando.setInt(3, pedido.getEstudante().getId());
-
-                            if (pedido.getAula() == null) {
-                                comando.setObject(4, null);
-                            } else {
-                                comando.setInt(4, pedido.getAula().getId());
-                            }
-
-                            if (pedido.getMonitor() == null) {
-                                comando.setObject(5, null);
-                            } else {
-                                comando.setInt(5, pedido.getMonitor().getId());
-                            }
-
-                            comando.setString(6, pedido.getDuvida());
-                            comando.setString(7, pedido.getStatus());
-                            comando.setString(8, pedido.getData());
-                            comando.setString(9, pedido.getHorario());
-                            comando.executeUpdate();
-                        }
-                    }
-                }
-            }
-
-            comando.close();
-            conexao.close();
-        } catch (Exception erro) {
-            throw new RuntimeException("Erro ao salvar pedidos de monitoria: " + erro.getMessage());
-        }
-    }
-
-    private void salvarMensagensDoChat(PreparedStatement comando, Chat chat, String origem, int origemId) throws Exception {
-        for (Mensagem mensagem : chat.getMensagens()) {
-            comando.setInt(1, mensagem.getId());
-            comando.setString(2, origem);
-            comando.setInt(3, origemId);
-            comando.setInt(4, mensagem.getAutor().getId());
-            comando.setString(5, mensagem.getTexto());
-            comando.executeUpdate();
-        }
-    }
-
-    private void ajustarProximoId(BancoDados banco) {
-        int maiorId = 0;
+    private void separarUsuariosPorPerfil(BancoDados banco) {
+        ArrayList<Estudante> estudantes = new ArrayList<>();
+        ArrayList<Monitor> monitores = new ArrayList<>();
+        ArrayList<Professor> professores = new ArrayList<>();
 
         for (Usuario usuario : banco.getUsuarios()) {
-            if (usuario.getId() > maiorId) {
-                maiorId = usuario.getId();
-            }
+            usuario.incluirEmEstudantes(estudantes);
+            usuario.incluirEmMonitores(monitores);
+            usuario.incluirEmProfessores(professores);
         }
 
+        estudantesPorId.clear();
+        monitoresPorId.clear();
+        professoresPorId.clear();
+
+        for (Estudante estudante : estudantes) {
+            estudantesPorId.put(estudante.getId(), estudante);
+        }
+        for (Monitor monitor : monitores) {
+            monitoresPorId.put(monitor.getId(), monitor);
+        }
+        for (Professor professor : professores) {
+            professoresPorId.put(professor.getId(), professor);
+        }
+    }
+
+    private HashMap<Integer, Periodo> carregarPeriodos(Connection conexao, HashMap<Integer, Curso> cursos)
+            throws SQLException {
+        return periodoDao.listar(conexao, cursos);
+    }
+
+    private HashMap<Integer, Materia> carregarMaterias(Connection conexao, HashMap<Integer, Periodo> periodos)
+            throws SQLException {
+        return materiaDao.listar(conexao, periodos, professoresPorId);
+    }
+
+    private void carregarParticipantes(Connection conexao, HashMap<Integer, Materia> materias,
+            HashMap<Integer, Usuario> usuarios) throws SQLException {
+        participanteDao.listar(conexao, materias, usuarios);
+    }
+
+    // ------------------------------------------------------------------ dados iniciais
+
+    /**
+     * Grava, numa transacao, todos os dados de um BancoDados montado em memoria, com os ids que ja tem.
+     * So serve para os dados iniciais: com usuarios no banco, nada e gravado. Depois disso,
+     * cada operacao grava pelo seu DAO.
+     */
+    public void gravarDadosIniciais(BancoDados banco) {
+        Connection conexao = abrirConexao();
+        boolean gravou = false;
+        try {
+            criarTabelas(conexao);
+            if (contarLinhas(conexao, "usuarios") > 0) {
+                throw new RegraDeNegocioException("O banco ja tem dados; os dados iniciais nao foram gravados.");
+            }
+            conexao.setAutoCommit(false);
+
+            separarUsuariosPorPerfil(banco);
+            ArrayList<Materia> materias = listarMaterias(banco);
+            ArrayList<Aula> aulas = listarAulas(materias);
+
+            salvarCursos(conexao, banco);
+            salvarUsuarios(conexao, banco);
+            salvarPeriodos(conexao, banco);
+            salvarMaterias(conexao, banco);
+            salvarParticipantes(conexao, materias);
+            salvarAulas(conexao, materias);
+            salvarHorariosMonitor(conexao, materias);
+            salvarFeedbacks(conexao, aulas);
+            salvarMateriais(conexao, materias);
+            salvarChats(conexao, materias);
+            salvarGrupos(conexao, materias);
+            salvarPedidosMonitoria(conexao, materias);
+            salvarQuizzes(conexao, aulas);
+
+            conexao.commit();
+            gravou = true;
+        } catch (SQLException erro) {
+            throw new PersistenciaException("Erro ao gravar os dados iniciais. Nada foi gravado. Detalhe: "
+                    + erro.getMessage());
+        } finally {
+            if (!gravou) {
+                desfazer(conexao);
+            }
+            fechar(conexao);
+        }
+    }
+
+    private void salvarCursos(Connection conexao, BancoDados banco) throws SQLException {
         for (Curso curso : banco.getCursos()) {
-            if (curso.getId() > maiorId) {
-                maiorId = curso.getId();
-            }
+            cursoDao.inserirComId(conexao, curso);
+        }
+    }
 
+    private void salvarUsuarios(Connection conexao, BancoDados banco) throws SQLException {
+        for (Usuario usuario : banco.getUsuarios()) {
+            usuarioDao.inserirComId(conexao, usuario);
+        }
+    }
+
+    private void salvarPeriodos(Connection conexao, BancoDados banco) throws SQLException {
+        for (Curso curso : banco.getCursos()) {
             for (Periodo periodo : curso.getPeriodos()) {
-                if (periodo.getId() > maiorId) {
-                    maiorId = periodo.getId();
-                }
+                periodoDao.inserirComId(conexao, curso, periodo);
+            }
+        }
+    }
 
+    private void salvarMaterias(Connection conexao, BancoDados banco) throws SQLException {
+        for (Curso curso : banco.getCursos()) {
+            for (Periodo periodo : curso.getPeriodos()) {
                 for (Materia materia : periodo.getMaterias()) {
-                    if (materia.getId() > maiorId) {
-                        maiorId = materia.getId();
-                    }
-
-                    for (Aula aula : materia.getAulas()) {
-                        if (aula.getId() > maiorId) {
-                            maiorId = aula.getId();
-                        }
-
-                        Quiz quiz = aula.getQuiz();
-                        if (quiz != null) {
-                            if (quiz.getId() > maiorId) {
-                                maiorId = quiz.getId();
-                            }
-
-                            for (PerguntaQuiz pergunta : quiz.getPerguntas()) {
-                                if (pergunta.getId() > maiorId) {
-                                    maiorId = pergunta.getId();
-                                }
-
-                                for (AlternativaQuiz alternativa : pergunta.getAlternativas()) {
-                                    if (alternativa.getId() > maiorId) {
-                                        maiorId = alternativa.getId();
-                                    }
-                                }
-                            }
-
-                            for (TentativaQuiz tentativa : quiz.getTentativas()) {
-                                if (tentativa.getId() > maiorId) {
-                                    maiorId = tentativa.getId();
-                                }
-
-                                for (RespostaQuiz resposta : tentativa.getRespostas()) {
-                                    if (resposta.getId() > maiorId) {
-                                        maiorId = resposta.getId();
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    for (Material material : materia.getMateriais()) {
-                        if (material.getId() > maiorId) {
-                            maiorId = material.getId();
-                        }
-                    }
-
-                    for (GrupoEstudo grupo : materia.getGrupos()) {
-                        if (grupo.getId() > maiorId) {
-                            maiorId = grupo.getId();
-                        }
-                    }
-
-                    for (PedidoMonitoria pedido : materia.getPedidosMonitoria()) {
-                        if (pedido.getId() > maiorId) {
-                            maiorId = pedido.getId();
-                        }
-                    }
+                    materiaDao.inserirComId(conexao, periodo, materia);
                 }
             }
         }
+    }
 
-        banco.ajustarProximoId(maiorId);
+    // O professor da materia ja fica em materias.professor_id; aqui entram alunos e monitores.
+    /** So alunos e monitores; o professor fica em materias.professor_id. */
+    private void salvarParticipantes(Connection conexao, ArrayList<Materia> materias) throws SQLException {
+        for (Materia materia : materias) {
+            for (Estudante estudante : materia.getEstudantes()) {
+                participanteDao.inserir(conexao, materia, estudante);
+            }
+            for (Monitor monitor : materia.getMonitores()) {
+                participanteDao.inserir(conexao, materia, monitor);
+            }
+        }
+    }
+
+    private void salvarAulas(Connection conexao, ArrayList<Materia> materias) throws SQLException {
+        for (Materia materia : materias) {
+            for (Aula aula : materia.getAulas()) {
+                aulaDao.inserirComId(conexao, materia, aula);
+            }
+        }
+    }
+
+    // Horario de uma materia que ja foi removida nao e gravado.
+    private void salvarHorariosMonitor(Connection conexao, ArrayList<Materia> materias) throws SQLException {
+        for (Monitor monitor : monitoresPorId.values()) {
+            for (HorarioMonitor horario : monitor.getHorarios()) {
+                if (materias.contains(horario.getMateria())) {
+                    horarioMonitorDao.inserir(conexao, monitor, horario);
+                }
+            }
+        }
+    }
+
+    private void salvarFeedbacks(Connection conexao, ArrayList<Aula> aulas) throws SQLException {
+        for (Aula aula : aulas) {
+            for (Feedback feedback : aula.getFeedbacks()) {
+                feedbackDao.inserir(conexao, aula, feedback);
+            }
+        }
+    }
+
+    private void salvarMateriais(Connection conexao, ArrayList<Materia> materias) throws SQLException {
+        for (Materia materia : materias) {
+            for (Material material : materia.getMateriais()) {
+                materialDao.inserirComId(conexao, materia, material);
+            }
+        }
+    }
+
+    // Cada materia tem um chat geral e um de equipe; cada aula tem o seu chat.
+    private void salvarChats(Connection conexao, ArrayList<Materia> materias) throws SQLException {
+        chatDao.inserirTodos(conexao, materias);
+    }
+
+    private void salvarGrupos(Connection conexao, ArrayList<Materia> materias) throws SQLException {
+        for (Materia materia : materias) {
+            for (GrupoEstudo grupo : materia.getGrupos()) {
+                grupoEstudoDao.inserirComId(conexao, materia, grupo);
+            }
+        }
+    }
+
+    private void salvarPedidosMonitoria(Connection conexao, ArrayList<Materia> materias) throws SQLException {
+        for (Materia materia : materias) {
+            for (PedidoMonitoria pedido : materia.getPedidosMonitoria()) {
+                pedidoMonitoriaDao.inserirComId(conexao, materia, pedido);
+            }
+        }
+    }
+
+    private void salvarQuizzes(Connection conexao, ArrayList<Aula> aulas) throws SQLException {
+        for (Aula aula : aulas) {
+            if (aula.getQuiz() != null) {
+                quizDao.inserirComId(conexao, aula, aula.getQuiz());
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ esquema
+
+    private void criarTabelas(Connection conexao) throws SQLException {
+        if (existeTabela(conexao, "usuarios") && !existeTabela(conexao, "perfis")) {
+            throw new PersistenciaException(mensagemDeEsquemaAntigo());
+        }
+
+        String[] nomes = EsquemaBanco.nomesDasTabelas();
+        String[] comandos = EsquemaBanco.comandosDeCriacao();
+        Statement comando = conexao.createStatement();
+        for (int i = 0; i < nomes.length; i++) {
+            if (!existeTabela(conexao, nomes[i])) {
+                comando.executeUpdate(comandos[i]);
+            }
+        }
+        comando.close();
+
+        if (contarLinhas(conexao, "perfis") == 0) {
+            inserirDadosFixos(conexao);
+        }
+    }
+
+    private boolean existeTabela(Connection conexao, String tabela) throws SQLException {
+        PreparedStatement consulta = conexao.prepareStatement(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = ?");
+        consulta.setString(1, Conexao.BANCO);
+        consulta.setString(2, tabela);
+        ResultSet resultado = consulta.executeQuery();
+        resultado.next();
+        boolean existe = resultado.getInt(1) > 0;
+        resultado.close();
+        consulta.close();
+        return existe;
+    }
+
+    private int contarLinhas(Connection conexao, String tabela) throws SQLException {
+        Statement consulta = conexao.createStatement();
+        ResultSet resultado = consulta.executeQuery("SELECT COUNT(*) FROM " + tabela);
+        resultado.next();
+        int quantidade = resultado.getInt(1);
+        resultado.close();
+        consulta.close();
+        return quantidade;
+    }
+
+    private void inserirDadosFixos(Connection conexao) throws SQLException {
+        conexao.setAutoCommit(false);
+        Statement comando = conexao.createStatement();
+        try {
+            for (String insercao : EsquemaBanco.comandosDeDadosFixos()) {
+                comando.executeUpdate(insercao);
+            }
+            conexao.commit();
+        } catch (SQLException erro) {
+            conexao.rollback();
+            throw erro;
+        } finally {
+            comando.close();
+            conexao.setAutoCommit(true);
+        }
+    }
+
+    // ------------------------------------------------------------------ apoio
+
+    private ArrayList<Materia> listarMaterias(BancoDados banco) {
+        ArrayList<Materia> materias = new ArrayList<>();
+        for (Curso curso : banco.getCursos()) {
+            for (Periodo periodo : curso.getPeriodos()) {
+                materias.addAll(periodo.getMaterias());
+            }
+        }
+        return materias;
+    }
+
+    private ArrayList<Aula> listarAulas(ArrayList<Materia> materias) {
+        ArrayList<Aula> aulas = new ArrayList<>();
+        for (Materia materia : materias) {
+            aulas.addAll(materia.getAulas());
+        }
+        return aulas;
     }
 }

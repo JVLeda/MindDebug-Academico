@@ -55,7 +55,7 @@ public class PainelMonitores extends JPanel {
             if (monitor == null) {
                 throw new RuntimeException("Escolha um monitor.");
             }
-            janela.getMateriaAberta().removerParticipante(monitor);
+            janela.getController().removerMonitorDaMateria(janela.getUsuarioLogado(), janela.getMateriaAberta(), monitor);
             janela.mostrarMateria();
         }));
 

@@ -4,13 +4,28 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
+/**
+ * Fonte unica da configuracao de acesso ao MySQL.
+ * Os valores sao os mesmos do compose.yaml e servem apenas
+ * para o ambiente local de desenvolvimento.
+ */
 public class Conexao {
-    private static final String URL_PADRAO = "jdbc:mysql://localhost:3306/";
-    private static final String USUARIO = "root";
-    private static final String SENHA = "Leda123";
+    public static final String HOST = "localhost";
+    public static final String PORTA = "3306";
+    public static final String BANCO = "minddebug";
+    public static final String USUARIO = "minddebug";
+    public static final String SENHA = "minddebug";
 
     public static Connection getConnection() throws SQLException {
-        String banco = System.getProperty("minddebug.banco", "minddebug");
-        return DriverManager.getConnection(URL_PADRAO + banco, USUARIO, SENHA);
+        return DriverManager.getConnection(getUrl(), USUARIO, SENHA);
+    }
+
+    public static String getUrl() {
+        return "jdbc:mysql://" + descricao();
+    }
+
+    /** Destino da conexao sem expor a senha. Ex.: localhost:3306/minddebug */
+    public static String descricao() {
+        return HOST + ":" + PORTA + "/" + BANCO;
     }
 }

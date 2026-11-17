@@ -2,10 +2,10 @@ package dao;
 
 public class DiagnosticoBancoTest {
     public static void main(String[] args) {
-        String mensagem = BancoDao.mensagemDeConexaoIndisponivel("Connection refused");
+        String mensagem = AcessoBanco.mensagemDeConexaoIndisponivel("Connection refused");
 
         assertContains(mensagem, "MySQL", "A mensagem deve identificar o servico necessario.");
-        assertContains(mensagem, "localhost:3307", "A mensagem deve indicar o endereco configurado.");
+        assertContains(mensagem, util.Conexao.descricao(), "A mensagem deve indicar o endereco configurado em Conexao.");
         assertContains(mensagem, "Connection refused", "A mensagem deve preservar o detalhe tecnico.");
         assertFalse(mensagem.toLowerCase().contains("senha"), "A mensagem nao deve expor segredo.");
     }
