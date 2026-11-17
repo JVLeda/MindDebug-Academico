@@ -7,7 +7,8 @@ public class ScriptBancoTest {
     public static void main(String[] args) throws Exception {
         String script = Files.readString(Path.of("src", "MindDebugBD.sql")).toLowerCase();
 
-        assertContains(script, "create database if not exists projeto_faculdade", "O script deve usar o banco configurado pela aplicacao.");
+        assertContains(script, "create database if not exists " + util.Conexao.BANCO, "O script deve usar o banco padrao da aplicacao.");
+        assertContains(script, "use " + util.Conexao.BANCO + ";", "O script deve selecionar o banco padrao da aplicacao.");
         assertContains(script, "unique (aula_id, estudante_id)", "O script deve impedir feedback duplicado.");
         assertContains(script, "check (nota between 0 and 10)", "O script deve validar a escala de notas.");
         assertContains(script, "primary key (materia_id, usuario_id)", "O script deve definir a chave da associacao de participantes.");

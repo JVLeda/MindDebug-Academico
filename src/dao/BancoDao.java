@@ -31,7 +31,7 @@ import java.util.LinkedHashMap;
 
 public class BancoDao {
     public static String mensagemDeConexaoIndisponivel(String detalhe) {
-        return "Nao foi possivel conectar ao MySQL em localhost:3307. "
+        return "Nao foi possivel conectar ao MySQL em " + Conexao.descricao() + ". "
                 + "Confirme se o servico esta ativo e se o banco configurado existe. Detalhe: " + detalhe;
     }
 

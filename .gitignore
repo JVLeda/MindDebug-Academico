@@ -1,3 +1,4 @@
 out/
 *.class
 minddebug-mvc.dat
+tmp/
