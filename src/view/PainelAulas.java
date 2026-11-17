@@ -42,7 +42,7 @@ public class PainelAulas extends JPanel {
             if (aula == null) {
                 throw new RuntimeException("Escolha uma aula.");
             }
-            janela.getMateriaAberta().getAulas().remove(aula);
+            janela.getController().removerAula(janela.getUsuarioLogado(), janela.getMateriaAberta(), aula);
             janela.mostrarMateria();
         }));
 

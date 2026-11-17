@@ -21,7 +21,6 @@ public class PainelMateria extends JPanel {
     private JMenuItem itemChatGeral;
     private JMenuItem itemChatsAulas;
     private JMenuItem itemQuiz;
-    private JMenuItem itemSalvar;
     private JMenuItem itemTrocarSenha;
     private JMenuItem itemVoltar;
     private JMenuItem itemLogoff;
@@ -82,13 +81,11 @@ public class PainelMateria extends JPanel {
         menuChats.add(itemChatGeral);
         menuChats.add(itemChatsAulas);
 
-        itemSalvar = item("Salvar", 'V');
         itemTrocarSenha = item("Trocar senha", 'T');
         itemVoltar = item("Voltar aos cursos", 'C');
         itemLogoff = item("Logoff", 'L');
         itemSobre = item("Sobre", 'B');
 
-        menuSistema.add(itemSalvar);
         menuSistema.add(itemTrocarSenha);
         menuSistema.add(itemVoltar);
         menuSistema.addSeparator();
@@ -170,8 +167,6 @@ public class PainelMateria extends JPanel {
                 mostrarConteudo("Chat geral", new PainelChat(janela, "Chat geral", janela.getMateriaAberta().getChatGeral()));
             } else if (origem == itemChatsAulas) {
                 mostrarConteudo("Chats por aula", new PainelChatsPorAula(janela));
-            } else if (origem == itemSalvar) {
-                janela.salvarDados();
             } else if (origem == itemTrocarSenha) {
                 janela.trocarSenha();
             } else if (origem == itemVoltar) {

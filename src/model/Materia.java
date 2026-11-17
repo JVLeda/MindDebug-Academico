@@ -4,6 +4,8 @@ import java.util.ArrayList;
 
 public class Materia extends Entidade {
     private String nome;
+    private String codigo = "";
+    private int cargaHoraria;
     private Professor professor;
     private ArrayList<Usuario> participantes = new ArrayList<>();
     private ArrayList<Aula> aulas = new ArrayList<>();
@@ -53,9 +55,7 @@ public class Materia extends Entidade {
     public ArrayList<Estudante> getEstudantes() {
         ArrayList<Estudante> estudantes = new ArrayList<>();
         for (Usuario usuario : participantes) {
-            if (usuario instanceof Estudante) {
-                estudantes.add((Estudante) usuario);
-            }
+            usuario.incluirEmEstudantes(estudantes);
         }
         return estudantes;
     }
@@ -63,15 +63,29 @@ public class Materia extends Entidade {
     public ArrayList<Monitor> getMonitores() {
         ArrayList<Monitor> monitores = new ArrayList<>();
         for (Usuario usuario : participantes) {
-            if (usuario instanceof Monitor) {
-                monitores.add((Monitor) usuario);
-            }
+            usuario.incluirEmMonitores(monitores);
         }
         return monitores;
     }
 
     public String getNome() {
         return nome;
+    }
+
+    public String getCodigo() {
+        return codigo;
+    }
+
+    public void setCodigo(String codigo) {
+        this.codigo = codigo;
+    }
+
+    public int getCargaHoraria() {
+        return cargaHoraria;
+    }
+
+    public void setCargaHoraria(int cargaHoraria) {
+        this.cargaHoraria = cargaHoraria;
     }
 
     public Professor getProfessor() {

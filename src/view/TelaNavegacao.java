@@ -1,7 +1,6 @@
 package view;
 
 import model.Curso;
-import model.Estudante;
 import model.Materia;
 import model.Periodo;
 
@@ -25,12 +24,8 @@ public class TelaNavegacao extends JPanel {
         JPanel topo = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
         JComboBox<Curso> comboCurso = new JComboBox<>();
-        if (janela.getUsuarioLogado() instanceof Estudante) {
-            comboCurso.addItem(((Estudante) janela.getUsuarioLogado()).getCurso());
-        } else {
-            for (Curso curso : janela.getController().listarCursos()) {
-                comboCurso.addItem(curso);
-            }
+        for (Curso curso : janela.getController().listarCursosVisiveis(janela.getUsuarioLogado())) {
+            comboCurso.addItem(curso);
         }
 
         JComboBox<Periodo> comboPeriodo = new JComboBox<>();
@@ -80,7 +75,7 @@ public class TelaNavegacao extends JPanel {
             if (materia == null) {
                 throw new RuntimeException("Escolha uma disciplina.");
             }
-            materia.adicionarParticipante(janela.getUsuarioLogado());
+            janela.getController().entrarNaMateria(janela.getUsuarioLogado(), materia);
             janela.setMateriaAberta(materia);
             janela.mostrarMateria();
         }));

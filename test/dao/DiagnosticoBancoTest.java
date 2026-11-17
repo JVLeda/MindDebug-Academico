@@ -2,7 +2,7 @@ package dao;
 
 public class DiagnosticoBancoTest {
     public static void main(String[] args) {
-        String mensagem = BancoDao.mensagemDeConexaoIndisponivel("Connection refused");
+        String mensagem = AcessoBanco.mensagemDeConexaoIndisponivel("Connection refused");
 
         assertContains(mensagem, "MySQL", "A mensagem deve identificar o servico necessario.");
         assertContains(mensagem, util.Conexao.descricao(), "A mensagem deve indicar o endereco configurado em Conexao.");

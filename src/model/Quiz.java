@@ -1,5 +1,7 @@
 package model;
 
+import excecao.DadoInvalidoException;
+import excecao.RegraDeNegocioException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -18,20 +20,20 @@ public class Quiz extends Entidade {
 
     public void adicionarPergunta(PerguntaQuiz pergunta) {
         if (pergunta == null) {
-            throw new RuntimeException("Pergunta do quiz obrigatoria");
+            throw new DadoInvalidoException("Pergunta do quiz obrigatoria");
         }
         if (!pergunta.temQuatroAlternativas() || pergunta.getAlternativaCorreta() == null) {
-            throw new RuntimeException("Pergunta deve possuir quatro alternativas e uma correta");
+            throw new RegraDeNegocioException("Pergunta deve possuir quatro alternativas e uma correta");
         }
         perguntas.add(pergunta);
     }
 
     public void adicionarTentativa(TentativaQuiz tentativa) {
         if (tentativa == null) {
-            throw new RuntimeException("Tentativa do quiz obrigatoria");
+            throw new DadoInvalidoException("Tentativa do quiz obrigatoria");
         }
         if (tentativa.getQuiz() != this) {
-            throw new RuntimeException("Tentativa nao pertence ao quiz");
+            throw new RegraDeNegocioException("Tentativa nao pertence ao quiz");
         }
         tentativas.add(tentativa);
     }

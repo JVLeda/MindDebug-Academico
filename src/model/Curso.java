@@ -8,6 +8,7 @@ public class Curso extends Entidade {
     private String area;
     private int cargaHoraria;
     private String coordenador;
+    private NivelCurso nivel = NivelCurso.GRADUACAO;
     private ArrayList<Periodo> periodos = new ArrayList<>();
 
     public Curso(String nome, String sigla, String area, int cargaHoraria, String coordenador) {
@@ -48,6 +49,14 @@ public class Curso extends Entidade {
 
     public String getCoordenador() {
         return coordenador;
+    }
+
+    public NivelCurso getNivel() {
+        return nivel;
+    }
+
+    public void setNivel(NivelCurso nivel) {
+        this.nivel = nivel;
     }
 
     @Override

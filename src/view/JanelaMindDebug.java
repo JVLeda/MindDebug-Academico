@@ -25,7 +25,7 @@ public class JanelaMindDebug extends JFrame {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                salvarAoFechar();
+                fecharSistema();
             }
         });
         mostrarLogin();
@@ -69,12 +69,8 @@ public class JanelaMindDebug extends JFrame {
         repaint();
     }
 
-    private void salvarAoFechar() {
-        try {
-            controller.salvar();
-        } catch (RuntimeException erro) {
-            JOptionPane.showMessageDialog(this, "Nao foi possivel salvar os dados: " + erro.getMessage(), "Atencao", JOptionPane.WARNING_MESSAGE);
-        }
+    // Cada operacao ja foi gravada no banco quando aconteceu; fechar nao precisa salvar nada.
+    private void fecharSistema() {
         dispose();
         System.exit(0);
     }
@@ -111,13 +107,6 @@ public class JanelaMindDebug extends JFrame {
                 JOptionPane.showMessageDialog(this, "Senha alterada.");
             });
         }
-    }
-
-    void salvarDados() {
-        tentar(() -> {
-            controller.salvar();
-            JOptionPane.showMessageDialog(this, "Dados salvos.");
-        });
     }
 
     void voltarAosCursos() {

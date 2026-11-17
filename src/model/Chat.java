@@ -16,6 +16,12 @@ public class Chat extends Entidade {
         return mensagem;
     }
 
+    public void adicionarMensagem(Mensagem mensagem) {
+        if (mensagem != null) {
+            mensagens.add(mensagem);
+        }
+    }
+
     public void apagar(Mensagem mensagem) {
         mensagens.remove(mensagem);
     }

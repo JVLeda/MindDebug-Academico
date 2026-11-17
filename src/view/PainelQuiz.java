@@ -2,7 +2,6 @@ package view;
 
 import model.AlternativaQuiz;
 import model.Aula;
-import model.Estudante;
 import model.PerguntaQuiz;
 import model.Quiz;
 import model.TentativaQuiz;
@@ -26,7 +25,7 @@ public class PainelQuiz extends JPanel {
     }
 
     private void montarTela() {
-        if (!(janela.getUsuarioLogado() instanceof Estudante)) {
+        if (!janela.getUsuarioLogado().podeResponderQuiz()) {
             mostrarResumo();
             return;
         }

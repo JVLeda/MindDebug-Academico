@@ -1,713 +1,277 @@
 package controller;
 
-import dao.BancoDao;
+import controller.administrador.EstruturaAcademicaController;
+import controller.administrador.UsuarioController;
+import controller.aluno.FeedbackController;
+import controller.aluno.MatriculaController;
+import controller.comum.AutenticacaoController;
+import controller.comum.ChatController;
+import controller.comum.MaterialController;
+import controller.comum.QuizController;
+import controller.monitor.SolicitacaoController;
+import controller.professor.AulaController;
+import controller.professor.GrupoEstudoController;
+import controller.professor.MonitoresDaMateriaController;
 import dao.BancoDados;
-import dao.CursoDao;
-import dao.UsuarioDao;
+import model.AlternativaQuiz;
 import model.Aula;
 import model.Chat;
 import model.Curso;
-import model.Administrador;
 import model.Estudante;
-import model.Feedback;
 import model.GrupoEstudo;
 import model.Materia;
 import model.Material;
 import model.Mensagem;
 import model.Monitor;
 import model.PedidoMonitoria;
+import model.PerguntaQuiz;
 import model.Periodo;
 import model.Professor;
 import model.Quiz;
-import model.PerguntaQuiz;
-import model.AlternativaQuiz;
 import model.TentativaQuiz;
-import model.RespostaQuiz;
 import model.Usuario;
-import util.Validador;
 
 import java.util.ArrayList;
 
+/**
+ * Fachada usada pelas telas Swing enquanto a interface JavaFX nao fica pronta.
+ * Nao tem regra propria: cada metodo repassa a acao ao controller do ator responsavel,
+ * nos pacotes controller.administrador, controller.professor, controller.aluno,
+ * controller.monitor e controller.comum.
+ */
 public class MindDebugController {
-    private BancoDados banco;
-    private BancoDao bancoDao;
-    private UsuarioDao usuarioDao;
-    private CursoDao cursoDao;
-    private Validador validador = new Validador();
+    private AutenticacaoController autenticacao;
+    private UsuarioController usuarios;
+    private EstruturaAcademicaController estrutura;
+    private AulaController aulas;
+    private MonitoresDaMateriaController monitoresDaMateria;
+    private GrupoEstudoController grupos;
+    private FeedbackController feedbacks;
+    private MatriculaController matriculas;
+    private SolicitacaoController solicitacoes;
+    private ChatController chats;
+    private MaterialController materiais;
+    private QuizController quizzes;
 
     public MindDebugController(BancoDados banco) {
-        this.banco = banco;
-        this.bancoDao = new BancoDao();
-        this.usuarioDao = new UsuarioDao(banco);
-        this.cursoDao = new CursoDao(banco);
-        boolean bancoEstavaVazio = usuarioDao.listar().isEmpty();
-        criarDadosIniciais();
-        boolean gradeAtualizada = garantirGradeEngenhariaComputacao();
-        if (bancoEstavaVazio || gradeAtualizada) {
-            bancoDao.salvar(banco);
-        }
+        new DadosIniciais().gravarSeVazio(banco);
+        autenticacao = new AutenticacaoController(banco);
+        usuarios = new UsuarioController(banco);
+        estrutura = new EstruturaAcademicaController(banco);
+        aulas = new AulaController(banco);
+        monitoresDaMateria = new MonitoresDaMateriaController(banco);
+        grupos = new GrupoEstudoController(banco);
+        feedbacks = new FeedbackController(banco);
+        matriculas = new MatriculaController(banco);
+        solicitacoes = new SolicitacaoController(banco);
+        chats = new ChatController(banco);
+        materiais = new MaterialController(banco);
+        quizzes = new QuizController(banco);
     }
+
+    // ------------------------------------------------------------------ comum: autenticacao
 
     public Usuario fazerLogin(String login, String senha) {
-        Usuario usuario = usuarioDao.buscarPorLogin(login);
-        if (usuario != null && usuario.autenticar(login, senha)) {
-            return usuario;
-        }
-        throw new RuntimeException("Login ou senha invalidos.");
-    }
-
-    public void salvar() {
-        bancoDao.salvar(banco);
-    }
-
-    public ArrayList<Usuario> listarUsuarios() {
-        return usuarioDao.listar();
-    }
-
-    public ArrayList<Curso> listarCursos() {
-        return cursoDao.listar();
-    }
-
-    public ArrayList<Professor> listarProfessores() {
-        ArrayList<Professor> professores = new ArrayList<>();
-        for (Usuario usuario : usuarioDao.listar()) {
-            if (usuario instanceof Professor) {
-                professores.add((Professor) usuario);
-            }
-        }
-        return professores;
-    }
-
-    public ArrayList<Monitor> listarMonitores() {
-        ArrayList<Monitor> monitores = new ArrayList<>();
-        for (Usuario usuario : usuarioDao.listar()) {
-            if (usuario instanceof Monitor) {
-                monitores.add((Monitor) usuario);
-            }
-        }
-        return monitores;
-    }
-
-    public Estudante cadastrarEstudante(String nome, String email, String matricula, String senha, Curso curso) {
-        validarLoginLivre(matricula);
-        Estudante estudante = new Estudante(
-                validador.texto(nome, "Nome"),
-                validador.email(email),
-                validador.texto(matricula, "Matricula"),
-                validador.senha(senha),
-                curso
-        );
-        usuarioDao.cadastrar(estudante);
-        return estudante;
-    }
-
-    public Professor cadastrarProfessor(Usuario usuarioLogado, String nome, String login, String email, String senha) {
-        exigirNivel(usuarioLogado, 4, "cadastrar professor");
-        validarLoginLivre(login);
-        Professor professor = new Professor(
-                validador.texto(nome, "Nome"),
-                validador.texto(login, "Login"),
-                validador.email(email),
-                validador.senha(senha)
-        );
-        usuarioDao.cadastrar(professor);
-        return professor;
-    }
-
-    public Monitor cadastrarMonitor(Usuario usuarioLogado, String nome, String login, String email, String senha, String tipo) {
-        exigirNivel(usuarioLogado, 3, "cadastrar monitor");
-        validarLoginLivre(login);
-        Monitor monitor = new Monitor(
-                validador.texto(nome, "Nome"),
-                validador.texto(login, "Login"),
-                validador.email(email),
-                validador.senha(senha),
-                validador.texto(tipo, "Tipo")
-        );
-        usuarioDao.cadastrar(monitor);
-        return monitor;
-    }
-
-    public void cadastrarUsuarioPeloCargo(Usuario usuarioLogado, String nome, String login, String senha, String cargo) {
-        if ("Docente".equals(cargo)) {
-            cadastrarProfessor(usuarioLogado, nome, login, login + "@minddebug.edu.br", senha);
-        } else if ("Monitor".equals(cargo)) {
-            cadastrarMonitor(usuarioLogado, nome, login, login + "@minddebug.edu.br", senha, "Monitor");
-        } else {
-            Curso curso = cursoDao.listar().isEmpty() ? null : cursoDao.listar().get(0);
-            cadastrarEstudante(nome, login + "@aluno.edu.br", login, senha, curso);
-        }
-    }
-
-    public void removerUsuario(Usuario usuarioLogado, Usuario usuario) {
-        exigirNivel(usuarioLogado, 4, "remover usuario");
-        usuarioDao.remover(usuario);
-    }
-
-    public Curso criarCurso(Usuario usuarioLogado, String nome, String sigla, String area, int cargaHoraria, String coordenador) {
-        exigirNivel(usuarioLogado, 4, "criar curso");
-        Curso curso = new Curso(
-                validador.texto(nome, "Nome"),
-                validador.texto(sigla, "Sigla"),
-                validador.texto(area, "Area"),
-                cargaHoraria,
-                validador.texto(coordenador, "Coordenador")
-        );
-        cursoDao.cadastrar(curso);
-        return curso;
-    }
-
-    public Periodo criarPeriodo(Usuario usuarioLogado, Curso curso, int numero, String nome) {
-        exigirNivel(usuarioLogado, 4, "criar periodo");
-        if (curso == null) {
-            throw new RuntimeException("Selecione um curso.");
-        }
-        Periodo periodo = new Periodo(numero, validador.texto(nome, "Nome do periodo"));
-        periodo.setId(banco.gerarId());
-        curso.adicionarPeriodo(periodo);
-        return periodo;
-    }
-
-    public Materia criarMateria(Usuario usuarioLogado, Periodo periodo, String nome, Professor professor) {
-        exigirNivel(usuarioLogado, 4, "criar disciplina");
-        if (periodo == null) {
-            throw new RuntimeException("Selecione um periodo.");
-        }
-        if (professor == null) {
-            throw new RuntimeException("Selecione um professor.");
-        }
-        Materia materia = new Materia(validador.texto(nome, "Nome da disciplina"), professor);
-        materia.setId(banco.gerarId());
-        periodo.adicionarMateria(materia);
-        return materia;
-    }
-
-    public void designarProfessorNaMateria(Usuario usuarioLogado, Materia materia, Professor professor) {
-        exigirNivel(usuarioLogado, 4, "designar professor");
-        if (materia == null) {
-            throw new RuntimeException("Selecione uma disciplina.");
-        }
-        if (professor == null) {
-            throw new RuntimeException("Selecione um professor.");
-        }
-        materia.setProfessor(professor);
-    }
-
-    public void removerProfessorDaMateria(Usuario usuarioLogado, Materia materia) {
-        exigirNivel(usuarioLogado, 4, "remover professor");
-        if (materia == null) {
-            throw new RuntimeException("Selecione uma disciplina.");
-        }
-        materia.removerProfessor();
-    }
-
-    public Aula criarAula(Usuario usuarioLogado, Materia materia, String titulo, String data) {
-        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "criar aula");
-        Aula aula = new Aula(validador.texto(titulo, "Titulo da aula"), data, "");
-        aula.setId(banco.gerarId());
-        materia.adicionarAula(aula);
-        return aula;
-    }
-
-    public void adicionarMonitorNaMateria(Usuario usuarioLogado, Materia materia, Monitor monitor) {
-        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "adicionar monitor");
-        materia.adicionarParticipante(monitor);
-    }
-
-    public void registrarFeedback(Usuario usuarioLogado, Aula aula, int nota, String comentario) {
-        if (!(usuarioLogado instanceof Estudante)) {
-            throw new RuntimeException("Somente aluno registra feedback.");
-        }
-        aula.registrarFeedback(new Feedback((Estudante) usuarioLogado, validador.nota(nota), comentario));
-    }
-
-    public void adicionarMaterial(Materia materia, Usuario autor, String titulo, String tipo, String referencia) {
-        Material material = new Material(
-                validador.texto(titulo, "Titulo"),
-                validador.texto(tipo, "Tipo"),
-                validador.texto(referencia, "Referencia"),
-                autor
-        );
-        material.setId(banco.gerarId());
-        materia.adicionarMaterial(material);
-    }
-
-    public void removerMaterial(Materia materia, Usuario usuarioLogado, Material material) {
-        if (material == null) {
-            throw new RuntimeException("Selecione um material.");
-        }
-        if (!usuarioLogado.podeApagarConteudoDe(material.getAutor())) {
-            throw new RuntimeException("Sem permissao para apagar este material.");
-        }
-        materia.getMateriais().remove(material);
-    }
-
-    public void enviarMensagem(Chat chat, Usuario autor, String texto) {
-        Mensagem mensagem = chat.enviar(autor, validador.texto(texto, "Mensagem"));
-        mensagem.setId(banco.gerarId());
-    }
-
-    public void apagarMensagem(Chat chat, Usuario usuarioLogado, Mensagem mensagem) {
-        if (mensagem == null) {
-            throw new RuntimeException("Selecione uma mensagem.");
-        }
-        if (!usuarioLogado.podeApagarConteudoDe(mensagem.getAutor())) {
-            throw new RuntimeException("Sem permissao para apagar esta mensagem.");
-        }
-        chat.apagar(mensagem);
-    }
-
-    public GrupoEstudo criarGrupoEstudo(Usuario usuarioLogado, Materia materia, String nome, Aula aula, Monitor monitor) {
-        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "criar grupo de estudo");
-        if (aula != null && !materia.getAulas().contains(aula)) {
-            throw new RuntimeException("A aula escolhida nao pertence a esta materia.");
-        }
-        if (monitor != null && !materia.getMonitores().contains(monitor)) {
-            throw new RuntimeException("O monitor escolhido nao esta cadastrado nesta materia.");
-        }
-
-        String nomeValidado = validador.texto(nome, "Nome do grupo");
-        for (GrupoEstudo grupoExistente : materia.getGrupos()) {
-            if (grupoExistente.getNome().equalsIgnoreCase(nomeValidado)) {
-                throw new RuntimeException("Ja existe um grupo com este nome.");
-            }
-        }
-
-        GrupoEstudo grupo = new GrupoEstudo(nomeValidado, aula, monitor);
-        grupo.setId(banco.gerarId());
-        materia.adicionarGrupo(grupo);
-        return grupo;
-    }
-
-    public void adicionarAlunoAoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Estudante estudante) {
-        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "adicionar aluno ao grupo");
-        validarGrupoEEstudante(materia, grupo, estudante);
-        grupo.adicionarEstudante(estudante);
-    }
-
-    public void removerAlunoDoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Estudante estudante) {
-        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "remover aluno do grupo");
-        validarGrupoEEstudante(materia, grupo, estudante);
-        grupo.removerEstudante(estudante);
-    }
-
-    public void adicionarMonitorAoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Monitor monitor) {
-        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "adicionar monitor ao grupo");
-        validarGrupoEMonitor(materia, grupo, monitor);
-        grupo.adicionarMonitor(monitor);
-    }
-
-    public void removerMonitorDoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Monitor monitor) {
-        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "remover monitor do grupo");
-        validarGrupoEMonitor(materia, grupo, monitor);
-        grupo.removerMonitor(monitor);
-    }
-
-    public void removerGrupoEstudo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo) {
-        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "remover grupo de estudo");
-        if (grupo == null || !materia.getGrupos().contains(grupo)) {
-            throw new RuntimeException("Selecione um grupo.");
-        }
-        materia.removerGrupo(grupo);
-    }
-
-    public PedidoMonitoria solicitarMonitoria(Usuario usuarioLogado, Materia materia, Aula aula, Monitor monitor, String duvida, String data, String horario) {
-        if (!(usuarioLogado instanceof Estudante)) {
-            throw new RuntimeException("Somente aluno solicita monitoria.");
-        }
-        if (materia == null) {
-            throw new RuntimeException("Materia invalida.");
-        }
-        if (aula == null) {
-            throw new RuntimeException("Selecione uma aula.");
-        }
-        if (monitor == null) {
-            throw new RuntimeException("Selecione um monitor.");
-        }
-        if (!materia.getAulas().contains(aula)) {
-            throw new RuntimeException("A aula escolhida nao pertence a esta materia.");
-        }
-        if (!materia.getMonitores().contains(monitor)) {
-            throw new RuntimeException("O monitor escolhido nao esta cadastrado nesta materia.");
-        }
-
-        PedidoMonitoria pedido = new PedidoMonitoria(
-                (Estudante) usuarioLogado,
-                aula,
-                monitor,
-                validador.texto(duvida, "Duvida"),
-                validador.texto(data, "Data"),
-                validador.texto(horario, "Horario")
-        );
-        pedido.setId(banco.gerarId());
-        materia.adicionarPedidoMonitoria(pedido);
-        return pedido;
-    }
-
-    public void aceitarMonitoria(Usuario usuarioLogado, PedidoMonitoria pedido, Monitor monitor) {
-        exigirNivel(usuarioLogado, 2, "aceitar monitoria");
-        if (pedido == null) {
-            throw new RuntimeException("Selecione um pedido.");
-        }
-        if ("Aceito".equals(pedido.getStatus())) {
-            throw new RuntimeException("Este pedido ja foi aceito.");
-        }
-        if (monitor == null && usuarioLogado instanceof Monitor) {
-            monitor = (Monitor) usuarioLogado;
-        }
-        if (monitor == null) {
-            throw new RuntimeException("Selecione um monitor.");
-        }
-        if (usuarioLogado instanceof Monitor && usuarioLogado != monitor) {
-            throw new RuntimeException("Monitor so pode aceitar pedido para si mesmo.");
-        }
-        pedido.aceitar(monitor);
-    }
-
-    public void recusarMonitoria(Usuario usuarioLogado, PedidoMonitoria pedido) {
-        exigirNivel(usuarioLogado, 2, "recusar monitoria");
-        if (pedido == null) {
-            throw new RuntimeException("Selecione um pedido.");
-        }
-        if (usuarioLogado instanceof Monitor && pedido.getMonitor() != null && usuarioLogado != pedido.getMonitor()) {
-            throw new RuntimeException("Monitor so pode recusar pedidos direcionados a ele.");
-        }
-        pedido.recusar();
-    }
-
-    public void redefinirSenhaDeUsuario(Usuario usuarioLogado, Usuario usuario, String novaSenha) {
-        exigirNivel(usuarioLogado, 4, "redefinir senha");
-        if (usuario == null) {
-            throw new RuntimeException("Selecione um usuario.");
-        }
-        usuario.trocarSenha(validador.senha(novaSenha));
-        usuarioDao.atualizar(usuario);
+        return autenticacao.fazerLogin(login, senha);
     }
 
     public void alterarMinhaSenha(Usuario usuario, String novaSenha) {
-        if (usuario == null) {
-            throw new RuntimeException("Usuario nao esta logado.");
-        }
-        usuario.trocarSenha(validador.senha(novaSenha));
-        usuarioDao.atualizar(usuario);
+        autenticacao.alterarMinhaSenha(usuario, novaSenha);
+    }
+
+    // ------------------------------------------------------------------ administrador: usuarios
+
+    public ArrayList<Usuario> listarUsuarios() {
+        return usuarios.listarUsuarios();
+    }
+
+    public ArrayList<Professor> listarProfessores() {
+        return usuarios.listarProfessores();
+    }
+
+    public ArrayList<Monitor> listarMonitores() {
+        return usuarios.listarMonitores();
+    }
+
+    public Estudante cadastrarEstudante(String nome, String email, String matricula, String senha, Curso curso) {
+        return usuarios.cadastrarEstudante(nome, email, matricula, senha, curso);
+    }
+
+    public Professor cadastrarProfessor(Usuario usuarioLogado, String nome, String login, String email, String senha) {
+        return usuarios.cadastrarProfessor(usuarioLogado, nome, login, email, senha);
+    }
+
+    public Monitor cadastrarMonitor(Usuario usuarioLogado, String nome, String login, String email, String senha, String tipo) {
+        return usuarios.cadastrarMonitor(usuarioLogado, nome, login, email, senha, tipo);
+    }
+
+    public void cadastrarUsuarioPeloCargo(Usuario usuarioLogado, String nome, String login, String senha, String cargo) {
+        usuarios.cadastrarUsuarioPeloCargo(usuarioLogado, nome, login, senha, cargo);
+    }
+
+    public void removerUsuario(Usuario usuarioLogado, Usuario usuario) {
+        usuarios.removerUsuario(usuarioLogado, usuario);
+    }
+
+    public void desativarUsuario(Usuario usuarioLogado, Usuario usuario) {
+        usuarios.desativarUsuario(usuarioLogado, usuario);
+    }
+
+    public void redefinirSenhaDeUsuario(Usuario usuarioLogado, Usuario usuario, String novaSenha) {
+        usuarios.redefinirSenhaDeUsuario(usuarioLogado, usuario, novaSenha);
+    }
+
+    // ------------------------------------------------------------------ administrador: estrutura academica
+
+    public ArrayList<Curso> listarCursos() {
+        return estrutura.listarCursos();
+    }
+
+    public ArrayList<Curso> listarCursosVisiveis(Usuario usuarioLogado) {
+        return estrutura.listarCursosVisiveis(usuarioLogado);
+    }
+
+    public Curso criarCurso(Usuario usuarioLogado, String nome, String sigla, String area, int cargaHoraria, String coordenador) {
+        return estrutura.criarCurso(usuarioLogado, nome, sigla, area, cargaHoraria, coordenador);
+    }
+
+    public void removerCurso(Usuario usuarioLogado, Curso curso) {
+        estrutura.removerCurso(usuarioLogado, curso);
+    }
+
+    public Periodo criarPeriodo(Usuario usuarioLogado, Curso curso, int numero, String nome) {
+        return estrutura.criarPeriodo(usuarioLogado, curso, numero, nome);
+    }
+
+    public void removerPeriodo(Usuario usuarioLogado, Curso curso, Periodo periodo) {
+        estrutura.removerPeriodo(usuarioLogado, curso, periodo);
+    }
+
+    public Materia criarMateria(Usuario usuarioLogado, Periodo periodo, String nome, Professor professor) {
+        return estrutura.criarMateria(usuarioLogado, periodo, nome, professor);
+    }
+
+    public void removerMateria(Usuario usuarioLogado, Periodo periodo, Materia materia) {
+        estrutura.removerMateria(usuarioLogado, periodo, materia);
+    }
+
+    public void designarProfessorNaMateria(Usuario usuarioLogado, Materia materia, Professor professor) {
+        estrutura.designarProfessorNaMateria(usuarioLogado, materia, professor);
+    }
+
+    public void removerProfessorDaMateria(Usuario usuarioLogado, Materia materia) {
+        estrutura.removerProfessorDaMateria(usuarioLogado, materia);
+    }
+
+    // ------------------------------------------------------------------ professor
+
+    public Aula criarAula(Usuario usuarioLogado, Materia materia, String titulo, String data) {
+        return aulas.criarAula(usuarioLogado, materia, titulo, data);
+    }
+
+    public void removerAula(Usuario usuarioLogado, Materia materia, Aula aula) {
+        aulas.removerAula(usuarioLogado, materia, aula);
+    }
+
+    public void adicionarMonitorNaMateria(Usuario usuarioLogado, Materia materia, Monitor monitor) {
+        monitoresDaMateria.adicionarMonitorNaMateria(usuarioLogado, materia, monitor);
+    }
+
+    public void removerMonitorDaMateria(Usuario usuarioLogado, Materia materia, Monitor monitor) {
+        monitoresDaMateria.removerMonitorDaMateria(usuarioLogado, materia, monitor);
+    }
+
+    public GrupoEstudo criarGrupoEstudo(Usuario usuarioLogado, Materia materia, String nome, Aula aula, Monitor monitor) {
+        return grupos.criarGrupoEstudo(usuarioLogado, materia, nome, aula, monitor);
+    }
+
+    public void adicionarAlunoAoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Estudante estudante) {
+        grupos.adicionarAlunoAoGrupo(usuarioLogado, materia, grupo, estudante);
+    }
+
+    public void removerAlunoDoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Estudante estudante) {
+        grupos.removerAlunoDoGrupo(usuarioLogado, materia, grupo, estudante);
+    }
+
+    public void adicionarMonitorAoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Monitor monitor) {
+        grupos.adicionarMonitorAoGrupo(usuarioLogado, materia, grupo, monitor);
+    }
+
+    public void removerMonitorDoGrupo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo, Monitor monitor) {
+        grupos.removerMonitorDoGrupo(usuarioLogado, materia, grupo, monitor);
+    }
+
+    public void removerGrupoEstudo(Usuario usuarioLogado, Materia materia, GrupoEstudo grupo) {
+        grupos.removerGrupoEstudo(usuarioLogado, materia, grupo);
+    }
+
+    // ------------------------------------------------------------------ aluno
+
+    public void registrarFeedback(Usuario usuarioLogado, Aula aula, int nota, String comentario) {
+        feedbacks.registrarFeedback(usuarioLogado, aula, nota, comentario);
+    }
+
+    public void entrarNaMateria(Usuario usuarioLogado, Materia materia) {
+        matriculas.entrarNaMateria(usuarioLogado, materia);
+    }
+
+    // ------------------------------------------------------------------ monitor
+
+    public PedidoMonitoria solicitarMonitoria(Usuario usuarioLogado, Materia materia, Aula aula, Monitor monitor, String duvida, String data, String horario) {
+        return solicitacoes.solicitarMonitoria(usuarioLogado, materia, aula, monitor, duvida, data, horario);
+    }
+
+    public void aceitarMonitoria(Usuario usuarioLogado, PedidoMonitoria pedido, Monitor monitor) {
+        solicitacoes.aceitarMonitoria(usuarioLogado, pedido, monitor);
+    }
+
+    public void recusarMonitoria(Usuario usuarioLogado, PedidoMonitoria pedido) {
+        solicitacoes.recusarMonitoria(usuarioLogado, pedido);
+    }
+
+    // ------------------------------------------------------------------ comum: chats, materiais e quiz
+
+    public void enviarMensagem(Chat chat, Usuario autor, String texto) {
+        chats.enviarMensagem(chat, autor, texto);
+    }
+
+    public void apagarMensagem(Chat chat, Usuario usuarioLogado, Mensagem mensagem) {
+        chats.apagarMensagem(chat, usuarioLogado, mensagem);
+    }
+
+    public void adicionarMaterial(Materia materia, Usuario autor, String titulo, String tipo, String referencia) {
+        materiais.adicionarMaterial(materia, autor, titulo, tipo, referencia);
+    }
+
+    public void removerMaterial(Materia materia, Usuario usuarioLogado, Material material) {
+        materiais.removerMaterial(materia, usuarioLogado, material);
     }
 
     public Quiz criarQuiz(Usuario usuarioLogado, Materia materia, Aula aula, String titulo, String descricao) {
-        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "criar quiz");
-        validarAulaDaMateria(materia, aula);
-        if (aula.getQuiz() != null) {
-            throw new RuntimeException("Esta aula ja possui quiz.");
-        }
-
-        Quiz quiz = new Quiz(validador.texto(titulo, "Titulo do quiz"), descricao);
-        quiz.setId(banco.gerarId());
-        quiz.setAula(aula);
-        aula.setQuiz(quiz);
-        return quiz;
+        return quizzes.criarQuiz(usuarioLogado, materia, aula, titulo, descricao);
     }
 
     public PerguntaQuiz adicionarPerguntaAoQuiz(Usuario usuarioLogado, Materia materia, Quiz quiz,
             String enunciado, String dificuldade, String[] textosAlternativas,
             String[] explicacoes, int indiceCorreta) {
-        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "adicionar pergunta ao quiz");
-        validarQuizDaMateria(materia, quiz);
-        if (textosAlternativas == null || explicacoes == null || textosAlternativas.length != 4
-                || explicacoes.length != 4 || indiceCorreta < 0 || indiceCorreta > 3) {
-            throw new RuntimeException("Informe quatro alternativas e uma resposta correta.");
-        }
-
-        PerguntaQuiz pergunta = new PerguntaQuiz(
-                validador.texto(enunciado, "Enunciado"),
-                validador.texto(dificuldade, "Dificuldade")
-        );
-        pergunta.setId(banco.gerarId());
-
-        for (int i = 0; i < 4; i++) {
-            AlternativaQuiz alternativa = new AlternativaQuiz(
-                    validador.texto(textosAlternativas[i], "Alternativa"),
-                    explicacoes[i],
-                    i == indiceCorreta
-            );
-            alternativa.setId(banco.gerarId());
-            pergunta.adicionarAlternativa(alternativa);
-        }
-
-        quiz.adicionarPergunta(pergunta);
-        return pergunta;
+        return quizzes.adicionarPerguntaAoQuiz(usuarioLogado, materia, quiz, enunciado, dificuldade,
+                textosAlternativas, explicacoes, indiceCorreta);
     }
 
     public void removerQuiz(Usuario usuarioLogado, Materia materia, Aula aula) {
-        exigirProfessorDaMateriaOuAdministrador(usuarioLogado, materia, "remover quiz");
-        validarAulaDaMateria(materia, aula);
-        if (aula.getQuiz() == null) {
-            throw new RuntimeException("A aula nao possui quiz.");
-        }
-        aula.setQuiz(null);
+        quizzes.removerQuiz(usuarioLogado, materia, aula);
     }
 
     public TentativaQuiz iniciarTentativaQuiz(Usuario usuarioLogado, Materia materia, Quiz quiz) {
-        Estudante estudante = validarEstudanteDoQuiz(usuarioLogado, materia, quiz);
-        if (!quiz.estaProntoParaResponder()) {
-            throw new RuntimeException("O quiz ainda nao possui perguntas.");
-        }
-
-        TentativaQuiz tentativa = new TentativaQuiz(estudante, quiz);
-        tentativa.setId(banco.gerarId());
-        return tentativa;
+        return quizzes.iniciarTentativaQuiz(usuarioLogado, materia, quiz);
     }
 
     public void registrarRespostaQuiz(Usuario usuarioLogado, TentativaQuiz tentativa,
             PerguntaQuiz pergunta, AlternativaQuiz alternativa) {
-        if (!(usuarioLogado instanceof Estudante) || tentativa == null
-                || tentativa.getEstudante() != usuarioLogado) {
-            throw new RuntimeException("Somente o estudante da tentativa pode responder.");
-        }
-        RespostaQuiz resposta = new RespostaQuiz(pergunta, alternativa);
-        resposta.setId(banco.gerarId());
-        tentativa.adicionarResposta(resposta);
+        quizzes.registrarRespostaQuiz(usuarioLogado, tentativa, pergunta, alternativa);
     }
 
     public void finalizarTentativaQuiz(Usuario usuarioLogado, TentativaQuiz tentativa) {
-        if (!(usuarioLogado instanceof Estudante) || tentativa == null
-                || tentativa.getEstudante() != usuarioLogado) {
-            throw new RuntimeException("Somente o estudante da tentativa pode finalizar.");
-        }
-        if (tentativa.getRespostas().size() != tentativa.getQuiz().getPerguntas().size()) {
-            throw new RuntimeException("Responda todas as perguntas antes de finalizar.");
-        }
-        tentativa.calcularAcertos();
-        if (!tentativa.getQuiz().getTentativas().contains(tentativa)) {
-            tentativa.getQuiz().adicionarTentativa(tentativa);
-        }
-    }
-
-    private void validarAulaDaMateria(Materia materia, Aula aula) {
-        if (materia == null || aula == null || !materia.getAulas().contains(aula)) {
-            throw new RuntimeException("A aula nao pertence a esta materia.");
-        }
-    }
-
-    private void validarQuizDaMateria(Materia materia, Quiz quiz) {
-        if (quiz == null || quiz.getAula() == null) {
-            throw new RuntimeException("Quiz invalido.");
-        }
-        validarAulaDaMateria(materia, quiz.getAula());
-        if (quiz.getAula().getQuiz() != quiz) {
-            throw new RuntimeException("Quiz invalido.");
-        }
-    }
-
-    private Estudante validarEstudanteDoQuiz(Usuario usuarioLogado, Materia materia, Quiz quiz) {
-        if (!(usuarioLogado instanceof Estudante)) {
-            throw new RuntimeException("Somente estudante responde quiz.");
-        }
-        validarQuizDaMateria(materia, quiz);
-        Estudante estudante = (Estudante) usuarioLogado;
-        if (!materia.getEstudantes().contains(estudante)) {
-            throw new RuntimeException("Estudante nao participa desta materia.");
-        }
-        return estudante;
-    }
-
-    private void validarLoginLivre(String login) {
-        if (usuarioDao.buscarPorLogin(login) != null) {
-            throw new RuntimeException("Login ja cadastrado.");
-        }
-    }
-
-    private void exigirNivel(Usuario usuario, int nivel, String acao) {
-        if (usuario == null || usuario.getNivel() < nivel) {
-            throw new RuntimeException("Sem permissao para " + acao + ".");
-        }
-    }
-
-    private void exigirProfessorDaMateriaOuAdministrador(Usuario usuario, Materia materia, String acao) {
-        if (usuario == null || materia == null) {
-            throw new RuntimeException("Dados invalidos.");
-        }
-        boolean administrador = usuario.getNivel() == 4;
-        boolean professorSemDesignacao = usuario instanceof Professor && materia.getProfessor() == null;
-        boolean professorDaMateria = false;
-
-        if (usuario instanceof Professor && materia.getProfessor() != null) {
-            professorDaMateria = usuario.getId() == materia.getProfessor().getId();
-        }
-
-        if (!professorDaMateria && !professorSemDesignacao && !administrador) {
-            throw new RuntimeException("Sem permissao para " + acao + ".");
-        }
-    }
-
-    private void validarGrupoEEstudante(Materia materia, GrupoEstudo grupo, Estudante estudante) {
-        if (grupo == null) {
-            throw new RuntimeException("Selecione um grupo.");
-        }
-        if (estudante == null) {
-            throw new RuntimeException("Selecione um aluno.");
-        }
-        if (!materia.getGrupos().contains(grupo)) {
-            throw new RuntimeException("O grupo nao pertence a esta materia.");
-        }
-        if (!materia.getEstudantes().contains(estudante)) {
-            throw new RuntimeException("O aluno nao esta matriculado nesta materia.");
-        }
-    }
-
-    private void validarGrupoEMonitor(Materia materia, GrupoEstudo grupo, Monitor monitor) {
-        if (grupo == null) {
-            throw new RuntimeException("Selecione um grupo.");
-        }
-        if (monitor == null) {
-            throw new RuntimeException("Selecione um monitor.");
-        }
-        if (!materia.getGrupos().contains(grupo)) {
-            throw new RuntimeException("O grupo nao pertence a esta materia.");
-        }
-        if (!materia.getMonitores().contains(monitor)) {
-            throw new RuntimeException("O monitor nao esta cadastrado nesta materia.");
-        }
-    }
-
-    private void criarDadosIniciais() {
-        if (!usuarioDao.listar().isEmpty()) {
-            return;
-        }
-
-        Administrador administrador = new Administrador("Administrador do Sistema", "admin", "admin@minddebug.edu.br", "1234");
-        Professor professor = new Professor("Professor 1", "prof", "prof@minddebug.edu.br", "1234");
-        Monitor monitor = new Monitor("Monitor 1", "monitor", "monitor@minddebug.edu.br", "1234", "Monitor");
-
-        usuarioDao.cadastrar(administrador);
-        usuarioDao.cadastrar(professor);
-        usuarioDao.cadastrar(monitor);
-
-        Curso curso = new Curso("Engenharia da Computacao", "EC", "Ciencias Exatas", 3600, "Coordenador 1");
-        cursoDao.cadastrar(curso);
-
-        Periodo periodo = new Periodo(1, "Primeiro Modulo");
-        periodo.setId(banco.gerarId());
-        curso.adicionarPeriodo(periodo);
-
-        Materia materia = new Materia("Algoritmos e Programacao", professor);
-        materia.setId(banco.gerarId());
-        materia.adicionarParticipante(monitor);
-        periodo.adicionarMateria(materia);
-
-        Aula aula1 = new Aula("Aula 1", "16/03/2026", "Objetos e classes");
-        Aula aula2 = new Aula("Aula 2", "23/03/2026", "Heranca e polimorfismo");
-        Aula aula3 = new Aula("Aula 3", "30/03/2026", "Colecoes e excecoes");
-        aula1.setId(banco.gerarId());
-        aula2.setId(banco.gerarId());
-        aula3.setId(banco.gerarId());
-        materia.adicionarAula(aula1);
-        materia.adicionarAula(aula2);
-        materia.adicionarAula(aula3);
-
-        Estudante aluno = new Estudante("Aluno 1", "aluno@aluno.edu.br", "2026001", "1234", curso);
-        aluno.setId(banco.gerarId());
-        usuarioDao.cadastrar(aluno);
-        materia.adicionarParticipante(aluno);
-
-        aula1.registrarFeedback(new Feedback(aluno, 8, "Entendi bem"));
-        aula2.registrarFeedback(new Feedback(aluno, 5, "Preciso revisar"));
-
-        Material material1 = new Material("Material1.pdf", "Arquivo", "Material1.pdf", professor);
-        Material material2 = new Material("Video de apoio", "Link", "https://www.youtube.com/watch?v=dXZRgW-X2ls", professor);
-        material1.setId(banco.gerarId());
-        material2.setId(banco.gerarId());
-        materia.adicionarMaterial(material1);
-        materia.adicionarMaterial(material2);
-
-        Mensagem mensagemGeral = materia.getChatGeral().enviar(professor, "Bem-vindos ao MindDebug.");
-        Mensagem mensagemEquipe = materia.getChatEquipe().enviar(professor, "Monitores, acompanhem os feedbacks.");
-        mensagemGeral.setId(banco.gerarId());
-        mensagemEquipe.setId(banco.gerarId());
-    }
-
-    private boolean garantirGradeEngenhariaComputacao() {
-        boolean alterou = false;
-        Professor professorPadrao = buscarProfessorPadrao();
-        Curso curso = buscarCursoPorNome("Engenharia da Computacao");
-
-        if (curso == null) {
-            curso = new Curso("Engenharia da Computacao", "EC", "Ciencias Exatas", 4170, "Coordenacao Engenharia da Computacao");
-            cursoDao.cadastrar(curso);
-            alterou = true;
-        }
-
-        String[][] grade = {
-                {"1", "Primeiro Modulo", "Matematica Basica", "Algoritmos e Programacao", "Arquitetura de Computadores", "Eletronica Digital", "Metodologia Cientifica", "Introducao a Ciencia do Ambiente"},
-                {"2", "Segundo Modulo", "Calculo I", "Algebra Linear", "Algebra Vetorial e Geometria Analitica", "Programacao Estruturada e Estrutura de Dados I", "Estatistica", "Direito e Legislacao", "Administracao e Empreendedorismo"},
-                {"3", "Terceiro Modulo", "Calculo II", "Equacoes Diferenciais Ordinarias", "Programacao Orientada a Objetos", "Fisica Geral I", "Eletricidade e Magnetismo", "Calculo Numerico"},
-                {"4", "Quarto Modulo", "Matematica Discreta e Teoria dos Grafos", "Probabilidade e Processos Estocasticos", "Banco de Dados", "Engenharia de Software", "Fisica Geral II", "Circuitos Eletricos"},
-                {"5", "Quinto Modulo", "Sinais e Sistemas", "Programacao Para Dispositivos Moveis", "Microcontroladores e Microprocessadores", "Interacao Humano Computador", "Sistemas Operacionais", "Eletronica Analogica"},
-                {"6", "Sexto Modulo", "Sistemas de Controle", "Teoria das Comunicacoes", "Estrutura de Dados II", "Sistemas Embarcados", "Redes de Computadores", "Processamento Digital de Sinais"},
-                {"7", "Setimo Modulo", "Otimizacao de Sistemas", "Linguagens Formais e Automatos", "Comunicacoes Digitais", "Sistemas Distribuidos", "Avaliacao de Desempenho de Sistemas", "Computacao Grafica"},
-                {"8", "Oitavo Modulo", "Optativa I", "Optativa II", "Projeto em Engenharia", "Seguranca de Sistemas Computacionais", "Automacao Industrial", "Inteligencia Artificial"},
-                {"9", "Nono Modulo", "Optativa III", "Optativa IV", "PFC I", "Estagio Supervisionado"},
-                {"10", "Decimo Modulo", "Atividades de Extensao Universitaria", "Atividades Curriculares Complementares", "PFC II"}
-        };
-
-        for (String[] dadosPeriodo : grade) {
-            int numero = Integer.parseInt(dadosPeriodo[0]);
-            String nomePeriodo = dadosPeriodo[1];
-            Periodo periodo = buscarPeriodo(curso, numero);
-
-            if (periodo == null) {
-                periodo = new Periodo(numero, nomePeriodo);
-                periodo.setId(banco.gerarId());
-                curso.adicionarPeriodo(periodo);
-                alterou = true;
-            }
-
-            for (int i = 2; i < dadosPeriodo.length; i++) {
-                String nomeMateria = dadosPeriodo[i];
-                if (buscarMateria(periodo, nomeMateria) == null) {
-                    Materia materia = new Materia(nomeMateria, professorPadrao);
-                    materia.setId(banco.gerarId());
-                    periodo.adicionarMateria(materia);
-                    alterou = true;
-                }
-            }
-        }
-        return alterou;
-    }
-
-    private Professor buscarProfessorPadrao() {
-        ArrayList<Professor> professores = listarProfessores();
-        if (!professores.isEmpty()) {
-            return professores.get(0);
-        }
-
-        Professor professor = new Professor("Professor 1", "prof", "prof@minddebug.edu.br", "1234");
-        usuarioDao.cadastrar(professor);
-        return professor;
-    }
-
-    private Curso buscarCursoPorNome(String nome) {
-        for (Curso curso : cursoDao.listar()) {
-            if (curso.getNome().equalsIgnoreCase(nome)) {
-                return curso;
-            }
-        }
-        return null;
-    }
-
-    private Periodo buscarPeriodo(Curso curso, int numero) {
-        for (Periodo periodo : curso.getPeriodos()) {
-            if (periodo.getNumero() == numero) {
-                return periodo;
-            }
-        }
-        return null;
-    }
-
-    private Materia buscarMateria(Periodo periodo, String nomeMateria) {
-        for (Materia materia : periodo.getMaterias()) {
-            if (materia.getNome().equalsIgnoreCase(nomeMateria)) {
-                return materia;
-            }
-        }
-        return null;
+        quizzes.finalizarTentativaQuiz(usuarioLogado, tentativa);
     }
 }
